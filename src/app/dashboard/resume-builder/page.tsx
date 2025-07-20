@@ -6,35 +6,24 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
+import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
-import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import {
-  aiResumeBuilder,
-  AiResumeBuilderOutput,
-} from "@/ai/flows/ai-resume-builder";
+import { aiResumeBuilder, AiResumeBuilderOutput } from "@/ai/flows/ai-resume-builder";
 import { Progress } from "@/components/ui/progress";
 import Image from "next/image";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
+
+import ClassicTemplate from "./templates/classic";
+import ModernTemplate from "./templates/modern";
+import CreativeTemplate from "./templates/creative";
 
 const personalDetailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required."),
@@ -69,8 +58,8 @@ const skillsSchema = z.string().min(5, "Please list some skills.");
 const finalTouchesSchema = z.object({
   jobDescription: z.string().optional(),
   photo: z.any().optional(),
+  template: z.enum(["classic", "modern", "creative"]).default("modern"),
 });
-
 
 const formSchema = z.object({
   personalDetails: personalDetailsSchema,
@@ -80,6 +69,7 @@ const formSchema = z.object({
   skills: skillsSchema,
   jobDescription: z.string().optional(),
   photo: z.any().optional(),
+  template: z.enum(["classic", "modern", "creative"]).default("modern"),
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -89,10 +79,16 @@ const steps = [
   { id: 2, name: "Work Experience", fields: ['workExperience'] as const },
   { id: 3, name: "Education", fields: ['education'] as const },
   { id: 4, name: "Skills", fields: ['skills'] as const },
-  { id: 5, name: "Final Touches", fields: ['jobDescription', 'photo'] as const },
+  { id: 5, name: "Template & Style", fields: ['template', 'photo', 'jobDescription'] as const },
 ];
 
 const LOCAL_STORAGE_KEY = 'resumeBuilderForm';
+
+const templates = {
+  classic: { name: "Classic", component: ClassicTemplate },
+  modern: { name: "Modern", component: ModernTemplate },
+  creative: { name: "Creative", component: CreativeTemplate },
+};
 
 export default function ResumeBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -100,6 +96,7 @@ export default function ResumeBuilderPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resumePreviewRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -110,6 +107,7 @@ export default function ResumeBuilderPage() {
       education: [{ institution: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "" }],
       skills: "",
       jobDescription: "",
+      template: "modern",
     },
   });
 
@@ -178,36 +176,11 @@ export default function ResumeBuilderPage() {
     }
 
     const userDetailsString = `
-      Personal Details:
-      - Name: ${values.personalDetails.fullName}
-      - Email: ${values.personalDetails.email}
-      - Phone: ${values.personalDetails.phoneNumber}
-      - Address: ${values.personalDetails.address || 'N/A'}
-      - LinkedIn: ${values.personalDetails.linkedIn || 'N/A'}
-      - Portfolio: ${values.personalDetails.portfolio || 'N/A'}
-
-      Professional Summary:
-      ${values.professionalSummary}
-
-      Work Experience:
-      ${values.workExperience.map(exp => `
-        - Job Title: ${exp.jobTitle}
-        - Company: ${exp.company}
-        - Location: ${exp.location || 'N/A'}
-        - Dates: ${exp.startDate} - ${exp.endDate || 'Present'}
-        - Responsibilities: ${exp.responsibilities}
-      `).join('\n')}
-
-      Education:
-      ${values.education.map(edu => `
-        - Institution: ${edu.institution}
-        - Degree: ${edu.degree}
-        - Field of Study: ${edu.fieldOfStudy}
-        - Dates: ${edu.startDate} - ${edu.endDate || 'Present'}
-      `).join('\n')}
-
-      Skills:
-      ${values.skills}
+      Personal Details: ${JSON.stringify(values.personalDetails)}
+      Professional Summary: ${values.professionalSummary}
+      Work Experience: ${JSON.stringify(values.workExperience)}
+      Education: ${JSON.stringify(values.education)}
+      Skills: ${values.skills}
     `;
 
     try {
@@ -215,6 +188,7 @@ export default function ResumeBuilderPage() {
         userDetails: userDetailsString,
         jobDescription: values.jobDescription,
         photoDataUri,
+        template: values.template
       });
       setGenerationResult(result);
     } catch (error) {
@@ -224,19 +198,41 @@ export default function ResumeBuilderPage() {
     }
   }
 
-  const downloadResume = () => {
-    if (!generationResult?.resume) return;
+  const downloadPdf = async () => {
+    const element = resumePreviewRef.current;
+    if (!element) return;
+  
+    const canvas = await html2canvas(element, {
+      scale: 2, 
+      useCORS: true
+    });
+    
+    const imgData = canvas.toDataURL('image/png');
+    
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'px',
+      format: 'a4'
+    });
 
-    const blob = new Blob([generationResult.resume], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'resume.txt';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const ratio = canvasWidth / canvasHeight;
+    const width = pdfWidth;
+    const height = width / ratio;
+
+    let finalHeight = height;
+    if (height > pdfHeight) {
+        finalHeight = pdfHeight;
+    }
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, width, finalHeight);
+    pdf.save('resume.pdf');
   };
+
+  const SelectedTemplate = templates[form.watch('template')].component;
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -368,8 +364,40 @@ export default function ResumeBuilderPage() {
         );
       case 5:
         return (
-          <motion.div key="step5" initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -300, opacity: 0 }} className="space-y-4">
+          <motion.div key="step5" initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -300, opacity: 0 }} className="space-y-6">
              <h3 className="font-headline text-xl">Final Touches</h3>
+              <FormField
+                control={form.control}
+                name="template"
+                render={({ field }) => (
+                    <FormItem className="space-y-3">
+                        <FormLabel>Choose a Template</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="grid grid-cols-3 gap-4"
+                            >
+                                {Object.entries(templates).map(([key, { name }]) => (
+                                    <FormItem key={key}>
+                                        <FormControl>
+                                            <RadioGroupItem value={key} className="sr-only" />
+                                        </FormControl>
+                                        <FormLabel className={cn(
+                                            "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer",
+                                            field.value === key && "border-primary"
+                                        )}>
+                                            <Palette className="mb-3 h-6 w-6" />
+                                            {name}
+                                        </FormLabel>
+                                    </FormItem>
+                                ))}
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="jobDescription"
@@ -518,30 +546,20 @@ export default function ResumeBuilderPage() {
 
             {!isLoading && !generationResult && (
                 <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg min-h-[500px]">
-                    <h3 className="font-bold text-xl">Your resume is waiting</h3>
+                    <Eye className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="font-bold text-xl">Resume Preview</h3>
                     <p className="text-muted-foreground">Complete the steps to see the magic happen.</p>
                 </div>
             )}
 
             {generationResult && (
                  <div className="space-y-4">
-                    {generationResult.atsScore && (
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">ATS Score</h4>
-                            <span className="font-bold text-lg text-primary">{generationResult.atsScore}%</span>
-                        </div>
-                        <Progress value={generationResult.atsScore} className="w-full" />
-                        <p className="text-xs text-muted-foreground">This score estimates how well your resume will pass through Applicant Tracking Systems.</p>
+                    <div id="resume-preview" ref={resumePreviewRef} className="bg-white text-black">
+                      <SelectedTemplate resume={generationResult.resume} photo={photoPreview} />
                     </div>
-                    )}
-                    <Separator />
-                    <div className="prose prose-sm max-w-none whitespace-pre-wrap bg-muted rounded-md p-4 h-[600px] overflow-auto">
-                        <pre className="font-sans text-sm">{generationResult.resume}</pre>
-                    </div>
-                    <Button onClick={downloadResume}>
+                    <Button onClick={downloadPdf} disabled={isLoading}>
                         <Download className="mr-2 h-4 w-4" />
-                        Download Resume
+                        Download as PDF
                     </Button>
                  </div>
             )}
