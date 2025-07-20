@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, Download, Upload, Lightbulb, CheckCircle, XCircle, FileText } from "lucide-react";
+import { Loader2, Sparkles, Download, Upload, Lightbulb, FileText } from "lucide-react";
 
 import {
   Card,
@@ -255,9 +256,11 @@ ${analysisResult.suggestions}
             <div className="space-y-4">
               <div className="space-y-2 text-center p-4 bg-muted/50 rounded-lg">
                 <h4 className="font-semibold text-lg">Overall ATS Score</h4>
-                <div className="relative inline-flex items-center justify-center">
-                    <Progress value={analysisResult.atsReadinessScore} className="w-32 h-32 rounded-full absolute" style={{ clipPath: 'circle(50% at 50% 50%)' }} />
-                    <span className="font-bold text-3xl text-primary">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
+                <div className="relative w-32 h-32 mx-auto">
+                    <Progress value={analysisResult.atsReadinessScore} className="absolute inset-0 w-full h-full rounded-full" style={{ clipPath: 'circle(50% at 50% 50%)' }} />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="font-bold text-3xl text-primary">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
+                    </div>
                 </div>
               </div>
 
