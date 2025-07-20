@@ -60,65 +60,47 @@ export default function AtsAnalyzerPage() {
 
     setIsFileLoading(true);
 
-    const processFile = async () => {
+    try {
       if (file.type === "text/plain") {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const text = event.target?.result as string;
-          form.setValue("resumeText", text, { shouldValidate: true });
-          setIsFileLoading(false);
-        };
-        reader.readAsText(file);
+        const text = await file.text();
+        form.setValue("resumeText", text, { shouldValidate: true });
       } else if (file.type === "application/pdf") {
-        try {
-          const reader = new FileReader();
-          reader.onload = async (event) => {
-            const data = event.target?.result as ArrayBuffer;
-            try {
-              const loadingTask = pdfjs.getDocument({ data });
-              const pdf = await loadingTask.promise;
-              let fullText = "";
-              for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => 'str' in item ? item.str : '').join(" ");
-                fullText += pageText + "\n";
-              }
-              form.setValue("resumeText", fullText, { shouldValidate: true });
-            } catch (error) {
-              console.error("Error parsing PDF:", error);
-              toast({
-                variant: "destructive",
-                title: "PDF Parsing Error",
-                description: "Could not extract text from the PDF file.",
-              });
-            } finally {
-              setIsFileLoading(false);
-            }
-          };
-          reader.readAsArrayBuffer(file);
-        } catch (error) {
-          console.error("Error reading PDF file:", error);
-           toast({
-            variant: "destructive",
-            title: "File Read Error",
-            description: "Could not read the selected PDF file.",
-          });
-          setIsFileLoading(false);
+        const reader = new FileReader();
+        const fileData = await new Promise<ArrayBuffer>((resolve) => {
+            reader.onload = (event) => resolve(event.target?.result as ArrayBuffer);
+            reader.readAsArrayBuffer(file);
+        });
+        
+        const loadingTask = pdfjs.getDocument({ data: fileData });
+        const pdf = await loadingTask.promise;
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => 'str' in item ? item.str : '').join(" ");
+          fullText += pageText + "\n";
         }
+        form.setValue("resumeText", fullText, { shouldValidate: true });
       } else {
         toast({
           variant: "destructive",
           title: "Invalid File Type",
           description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
         });
-        setIsFileLoading(false);
       }
-    }
-    await processFile();
-    // Clear the file input so the user can upload the same file again
-    if(fileInputRef.current) {
-        fileInputRef.current.value = '';
+    } catch (error) {
+      console.error("Error processing file:", error);
+      toast({
+        variant: "destructive",
+        title: "File Processing Error",
+        description: "Could not read or parse the selected file.",
+      });
+    } finally {
+      setIsFileLoading(false);
+      // Clear the file input so the user can upload the same file again
+      if(fileInputRef.current) {
+          fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -292,5 +274,3 @@ ${analysisResult.suggestions}
     </div>
   )
 }
-
-    
