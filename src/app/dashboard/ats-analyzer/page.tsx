@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Sparkles, Download, Upload } from "lucide-react";
+import * as pdfjs from "pdfjs-dist";
 
 import {
   Card,
@@ -30,6 +31,9 @@ import { analyzeResumeAts, AnalyzeResumeAtsOutput } from "@/ai/flows/ats-resume-
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
+// Set worker source for pdfjs
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 const formSchema = z.object({
   resumeText: z.string().min(100, "Please paste your full resume text or upload a file."),
 });
@@ -51,23 +55,49 @@ export default function AtsAnalyzerPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.type === "text/plain") {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const text = event.target?.result as string;
-          form.setValue("resumeText", text);
-        };
-        reader.readAsText(file);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Invalid File Type",
-          description: "Please upload a plain text (.txt) file.",
-        });
-      }
+    if (!file) return;
+
+    if (file.type === "text/plain") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        form.setValue("resumeText", text);
+      };
+      reader.readAsText(file);
+    } else if (file.type === "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const data = event.target?.result as ArrayBuffer;
+        try {
+          const loadingTask = pdfjs.getDocument({ data });
+          const pdf = await loadingTask.promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => 'str' in item ? item.str : '').join(" ");
+            fullText += pageText + "\n";
+          }
+          form.setValue("resumeText", fullText);
+        } catch (error) {
+          console.error("Error parsing PDF:", error);
+          toast({
+            variant: "destructive",
+            title: "PDF Parsing Error",
+            description: "Could not extract text from the PDF file.",
+          });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Invalid File Type",
+        description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
+      });
     }
   };
+
 
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
@@ -148,12 +178,12 @@ ${analysisResult.suggestions}
                           className="hidden"
                           ref={fileInputRef}
                           onChange={handleFileChange}
-                          accept=".txt"
+                          accept=".txt,.pdf"
                         />
                     </div>
                     <FormControl>
                       <Textarea
-                        placeholder="Paste the full text of your resume here, or upload a .txt file..."
+                        placeholder="Paste the full text of your resume here, or upload a .txt or .pdf file..."
                         className="min-h-[300px]"
                         {...field}
                       />
