@@ -95,6 +95,7 @@ export default function ResumeBuilderPage() {
   const [generationResult, setGenerationResult] = useState<AiResumeBuilderOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resumePreviewRef = useRef<HTMLDivElement>(null);
 
@@ -122,35 +123,55 @@ export default function ResumeBuilderPage() {
 
   // Load state from localStorage
   useEffect(() => {
-    const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      form.reset(parsedData.formData);
-      setPhotoPreview(parsedData.photoPreview);
+    try {
+        const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (savedData) {
+            const parsedData = JSON.parse(savedData);
+            if (parsedData.formData) {
+              form.reset(parsedData.formData);
+            }
+            if(parsedData.photoPreview) {
+              setPhotoPreview(parsedData.photoPreview);
+            }
+        }
+    } catch (error) {
+        console.error("Failed to parse resume data from localStorage", error)
     }
+    setIsMounted(true);
   }, [form]);
 
   // Save state to localStorage
   useEffect(() => {
+    if (!isMounted) return;
     const subscription = form.watch((value) => {
-      const dataToSave = {
-        formData: value,
-        photoPreview: photoPreview
+      try {
+          const dataToSave = {
+            formData: value,
+            photoPreview: photoPreview
+          }
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+      } catch (error) {
+        console.error("Failed to save resume data to localStorage", error);
       }
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
     });
     return () => subscription.unsubscribe();
-  }, [form, photoPreview]);
+  }, [form.watch, photoPreview, isMounted]);
+
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-        const currentData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
-        const updatedData = { ...currentData, photoPreview: reader.result as string };
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));
+        const result = reader.result as string;
+        setPhotoPreview(result);
+        try {
+            const currentData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+            const updatedData = { ...currentData, photoPreview: result };
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));
+        } catch (error) {
+            console.error("Failed to save photo preview to localStorage", error);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -232,7 +253,9 @@ export default function ResumeBuilderPage() {
     pdf.save('resume.pdf');
   };
 
-  const SelectedTemplate = templates[form.watch('template')].component;
+  const selectedTemplateName = form.watch('template');
+  const SelectedTemplate = isMounted ? templates[selectedTemplateName]?.component || ModernTemplate : ModernTemplate;
+
 
   const renderStepContent = () => {
     switch (currentStep) {
