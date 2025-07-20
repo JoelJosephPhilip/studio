@@ -36,42 +36,60 @@ import {
 import { Progress } from "@/components/ui/progress";
 import Image from "next/image";
 
-const formSchema = z.object({
-  personalDetails: z.object({
-    fullName: z.string().min(2, "Full name is required."),
-    email: z.string().email("Invalid email address."),
-    phoneNumber: z.string().min(10, "Phone number is required."),
-    address: z.string().optional(),
-    linkedIn: z.string().url("Invalid URL.").optional(),
-    portfolio: z.string().url("Invalid URL.").optional(),
-  }),
-  professionalSummary: z.string().min(20, "Please provide a brief professional summary."),
-  workExperience: z.array(z.object({
-    jobTitle: z.string().min(2, "Job title is required."),
-    company: z.string().min(2, "Company name is required."),
-    location: z.string().optional(),
-    startDate: z.string().min(4, "Start date is required."),
-    endDate: z.string().optional(),
-    responsibilities: z.string().min(20, "Please describe your responsibilities."),
-  })),
-  education: z.array(z.object({
-    institution: z.string().min(2, "Institution name is required."),
-    degree: z.string().min(2, "Degree is required."),
-    fieldOfStudy: z.string().min(2, "Field of study is required."),
-    startDate: z.string().min(4, "Start date is required."),
-    endDate: z.string().optional(),
-  })),
-  skills: z.string().min(5, "Please list some skills."),
+const personalDetailsSchema = z.object({
+  fullName: z.string().min(2, "Full name is required."),
+  email: z.string().email("Invalid email address."),
+  phoneNumber: z.string().min(10, "Phone number is required."),
+  address: z.string().optional(),
+  linkedIn: z.string().url("Invalid URL.").optional().or(z.literal('')),
+  portfolio: z.string().url("Invalid URL.").optional().or(z.literal('')),
+});
+
+const professionalSummarySchema = z.string().min(20, "Please provide a brief professional summary.");
+
+const workExperienceSchema = z.array(z.object({
+  jobTitle: z.string().min(2, "Job title is required."),
+  company: z.string().min(2, "Company name is required."),
+  location: z.string().optional(),
+  startDate: z.string().min(4, "Start date is required."),
+  endDate: z.string().optional(),
+  responsibilities: z.string().min(20, "Please describe your responsibilities."),
+}));
+
+const educationSchema = z.array(z.object({
+  institution: z.string().min(2, "Institution name is required."),
+  degree: z.string().min(2, "Degree is required."),
+  fieldOfStudy: z.string().min(2, "Field of study is required."),
+  startDate: z.string().min(4, "Start date is required."),
+  endDate: z.string().optional(),
+}));
+
+const skillsSchema = z.string().min(5, "Please list some skills.");
+
+const finalTouchesSchema = z.object({
   jobDescription: z.string().optional(),
   photo: z.any().optional(),
 });
 
+
+const formSchema = z.object({
+  personalDetails: personalDetailsSchema,
+  professionalSummary: professionalSummarySchema,
+  workExperience: workExperienceSchema,
+  education: educationSchema,
+  skills: skillsSchema,
+  jobDescription: z.string().optional(),
+  photo: z.any().optional(),
+});
+
+type FormSchemaType = z.infer<typeof formSchema>;
+
 const steps = [
-  { id: 1, name: "Personal Details" },
-  { id: 2, name: "Work Experience" },
-  { id: 3, name: "Education" },
-  { id: 4, name: "Skills" },
-  { id: 5, name: "Final Touches" },
+  { id: 1, name: "Personal Details", fields: ['personalDetails', 'professionalSummary'] as const },
+  { id: 2, name: "Work Experience", fields: ['workExperience'] as const },
+  { id: 3, name: "Education", fields: ['education'] as const },
+  { id: 4, name: "Skills", fields: ['skills'] as const },
+  { id: 5, name: "Final Touches", fields: ['jobDescription', 'photo'] as const },
 ];
 
 export default function ResumeBuilderPage() {
@@ -81,7 +99,7 @@ export default function ResumeBuilderPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       personalDetails: { fullName: "", email: "", phoneNumber: "", address: "", linkedIn: "", portfolio: "" },
@@ -113,8 +131,11 @@ export default function ResumeBuilderPage() {
     }
   };
 
-  const nextStep = () => {
-    if (currentStep < steps.length) {
+  const nextStep = async () => {
+    const fieldsToValidate = steps[currentStep - 1].fields;
+    const isValid = await form.trigger(fieldsToValidate);
+    
+    if (isValid && currentStep < steps.length) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -486,3 +507,5 @@ export default function ResumeBuilderPage() {
     </div>
   );
 }
+
+    
