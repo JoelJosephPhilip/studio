@@ -267,7 +267,7 @@ export default function ResumeBuilderPage() {
                         <FormItem><FormLabel>Start Date</FormLabel><FormControl><Input placeholder="YYYY-MM" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name={`education.${index}.endDate`} render={({ field }) => (
-                        <FormItem><FormLabel>End Date (or blank)</FormLabel><FormControl><Input placeholder="YYYY-MM" {...field} /></FormControl><FormMessage /></FormMessage>
+                        <FormItem><FormLabel>End Date (or blank)</FormLabel><FormControl><Input placeholder="YYYY-MM" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                  </div>
                 {eduFields.length > 1 && (
@@ -404,7 +404,7 @@ export default function ResumeBuilderPage() {
               </AnimatePresence>
               
               <div className="flex justify-between items-center pt-4">
-                {currentStep > 1 && (
+                {currentStep > 1 && currentStep <= steps.length && (
                   <Button type="button" variant="outline" onClick={prevStep}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Previous
