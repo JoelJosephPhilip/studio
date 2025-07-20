@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, Download } from "lucide-react";
+import { Loader2, Sparkles, Download, Upload } from "lucide-react";
 
 import {
   Card,
@@ -27,9 +27,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { analyzeResumeAts, AnalyzeResumeAtsOutput } from "@/ai/flows/ats-resume-analyzer";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
-  resumeText: z.string().min(100, "Please paste your full resume text."),
+  resumeText: z.string().min(100, "Please paste your full resume text or upload a file."),
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -37,6 +39,8 @@ type FormSchemaType = z.infer<typeof formSchema>;
 export default function AtsAnalyzerPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResumeAtsOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -44,6 +48,26 @@ export default function AtsAnalyzerPage() {
       resumeText: "",
     },
   });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type === "text/plain") {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          form.setValue("resumeText", text);
+        };
+        reader.readAsText(file);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid File Type",
+          description: "Please upload a plain text (.txt) file.",
+        });
+      }
+    }
+  };
 
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
@@ -56,6 +80,11 @@ export default function AtsAnalyzerPage() {
       setAnalysisResult(result);
     } catch (error) {
       console.error("Error analyzing resume:", error);
+      toast({
+        variant: "destructive",
+        title: "Analysis Failed",
+        description: "Something went wrong. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -103,10 +132,28 @@ ${analysisResult.suggestions}
                 name="resumeText"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Paste Your Resume</FormLabel>
+                    <div className="flex justify-between items-center">
+                      <FormLabel>Paste Your Resume</FormLabel>
+                       <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload Resume
+                        </Button>
+                        <Input
+                          type="file"
+                          className="hidden"
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                          accept=".txt"
+                        />
+                    </div>
                     <FormControl>
                       <Textarea
-                        placeholder="Paste the full text of your resume here..."
+                        placeholder="Paste the full text of your resume here, or upload a .txt file..."
                         className="min-h-[300px]"
                         {...field}
                       />
