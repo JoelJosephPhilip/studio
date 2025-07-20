@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
 
-import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight } from "lucide-react";
+import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download } from "lucide-react";
 
 import {
   Card,
@@ -92,6 +92,8 @@ const steps = [
   { id: 5, name: "Final Touches", fields: ['jobDescription', 'photo'] as const },
 ];
 
+const LOCAL_STORAGE_KEY = 'resumeBuilderForm';
+
 export default function ResumeBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [generationResult, setGenerationResult] = useState<AiResumeBuilderOutput | null>(null);
@@ -120,12 +122,37 @@ export default function ResumeBuilderPage() {
     name: "education",
   });
 
+  // Load state from localStorage
+  useEffect(() => {
+    const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+      form.reset(parsedData.formData);
+      setPhotoPreview(parsedData.photoPreview);
+    }
+  }, [form]);
+
+  // Save state to localStorage
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      const dataToSave = {
+        formData: value,
+        photoPreview: photoPreview
+      }
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+    });
+    return () => subscription.unsubscribe();
+  }, [form, photoPreview]);
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string);
+        const currentData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+        const updatedData = { ...currentData, photoPreview: reader.result as string };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));
       };
       reader.readAsDataURL(file);
     }
@@ -140,7 +167,6 @@ export default function ResumeBuilderPage() {
     }
   };
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
-
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -197,6 +223,20 @@ export default function ResumeBuilderPage() {
       setIsLoading(false);
     }
   }
+
+  const downloadResume = () => {
+    if (!generationResult?.resume) return;
+
+    const blob = new Blob([generationResult.resume], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'resume.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -499,7 +539,10 @@ export default function ResumeBuilderPage() {
                     <div className="prose prose-sm max-w-none whitespace-pre-wrap bg-muted rounded-md p-4 h-[600px] overflow-auto">
                         <pre className="font-sans text-sm">{generationResult.resume}</pre>
                     </div>
-                    <Button>Download Resume</Button>
+                    <Button onClick={downloadResume}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Resume
+                    </Button>
                  </div>
             )}
         </CardContent>
@@ -507,5 +550,3 @@ export default function ResumeBuilderPage() {
     </div>
   );
 }
-
-    

@@ -1,18 +1,192 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+"use client";
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Loader2, Sparkles, Download } from "lucide-react";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { analyzeResumeAts, AnalyzeResumeAtsOutput } from "@/ai/flows/ats-resume-analyzer";
+
+const formSchema = z.object({
+  resumeText: z.string().min(100, "Please paste your full resume text."),
+});
+
+type FormSchemaType = z.infer<typeof formSchema>;
 
 export default function AtsAnalyzerPage() {
-    return (
+  const [analysisResult, setAnalysisResult] = useState<AnalyzeResumeAtsOutput | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const form = useForm<FormSchemaType>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      resumeText: "",
+    },
+  });
+
+  async function onSubmit(values: FormSchemaType) {
+    setIsLoading(true);
+    setAnalysisResult(null);
+
+    try {
+      const result = await analyzeResumeAts({
+        resumeText: values.resumeText,
+      });
+      setAnalysisResult(result);
+    } catch (error) {
+      console.error("Error analyzing resume:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const downloadReport = () => {
+    if (!analysisResult) return;
+    const report = `
+ATS Resume Analysis Report
+==========================
+
+Overall Score: ${analysisResult.atsReadinessScore}/100
+
+Feedback:
+---------
+${analysisResult.feedback}
+
+Suggestions:
+------------
+${analysisResult.suggestions}
+    `;
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ats_report.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <Card>
         <CardHeader>
           <CardTitle className="font-headline">ATS Resume Analyzer</CardTitle>
           <CardDescription>Get real-time feedback on your resume's ATS compatibility.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
-            <h3 className="font-bold text-xl">Feature Coming Soon</h3>
-            <p className="text-muted-foreground">This tool will help you optimize your resume for applicant tracking systems.</p>
-          </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="resumeText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Paste Your Resume</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Paste the full text of your resume here..."
+                        className="min-h-[300px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Analyze Resume
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
-    )
+      
+      <Card className="lg:col-span-1 sticky top-6">
+        <CardHeader>
+          <CardTitle className="font-headline">Analysis Report</CardTitle>
+          <CardDescription>
+            Your resume's analysis will appear below.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-full">
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center text-center h-full p-12">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">The AI is analyzing your resume...</p>
+            </div>
+          )}
+
+          {!isLoading && !analysisResult && (
+            <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg min-h-[400px]">
+              <h3 className="font-bold text-xl">Ready for Analysis</h3>
+              <p className="text-muted-foreground">Paste your resume and click analyze to see the report.</p>
+            </div>
+          )}
+
+          {analysisResult && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-semibold">Overall ATS Score</h4>
+                  <span className="font-bold text-lg text-primary">{analysisResult.atsReadinessScore}/100</span>
+                </div>
+                <Progress value={analysisResult.atsReadinessScore} className="w-full" />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4 max-h-[600px] overflow-auto pr-4">
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Feedback</h4>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{analysisResult.feedback}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Suggestions for Improvement</h4>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{analysisResult.suggestions}</p>
+                </div>
+              </div>
+
+              <Button onClick={downloadReport}>
+                <Download className="mr-2 h-4 w-4" />
+                Download Report
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
 }

@@ -61,8 +61,8 @@ const resumePrompt = ai.definePrompt({
   Photo: {{media url=photoDataUri}}
   {{/if}}
 
-  Please generate a resume that is ATS-optimized and highlights the user's skills and experience in a way that is relevant to the job description (if provided). Include an optional ATS score.
-  Return the resume in a well-formatted text format.
+  Please generate a resume that is ATS-optimized and highlights the user's skills and experience in a way that is relevant to the job description (if provided).
+  Return the resume in a well-formatted text format. Do not include an ATS score in the output.
   `,
 });
 
