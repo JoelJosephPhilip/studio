@@ -113,24 +113,21 @@ export default function ResumeBuilderPage() {
     }
   };
 
-  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, steps.length));
+  const nextStep = () => {
+    if (currentStep < steps.length) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setGenerationResult(null);
-    setCurrentStep(steps.length + 1); // Move to loading/result view
 
     let photoDataUri: string | undefined = undefined;
-    if (values.photo && values.photo.length > 0) {
-      const file = values.photo[0];
-      photoDataUri = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(file);
-      });
+    if (photoPreview) {
+        photoDataUri = photoPreview;
     }
 
     const userDetailsString = `
@@ -138,9 +135,9 @@ export default function ResumeBuilderPage() {
       - Name: ${values.personalDetails.fullName}
       - Email: ${values.personalDetails.email}
       - Phone: ${values.personalDetails.phoneNumber}
-      - Address: ${values.personalDetails.address}
-      - LinkedIn: ${values.personalDetails.linkedIn}
-      - Portfolio: ${values.personalDetails.portfolio}
+      - Address: ${values.personalDetails.address || 'N/A'}
+      - LinkedIn: ${values.personalDetails.linkedIn || 'N/A'}
+      - Portfolio: ${values.personalDetails.portfolio || 'N/A'}
 
       Professional Summary:
       ${values.professionalSummary}
@@ -149,7 +146,7 @@ export default function ResumeBuilderPage() {
       ${values.workExperience.map(exp => `
         - Job Title: ${exp.jobTitle}
         - Company: ${exp.company}
-        - Location: ${exp.location}
+        - Location: ${exp.location || 'N/A'}
         - Dates: ${exp.startDate} - ${exp.endDate || 'Present'}
         - Responsibilities: ${exp.responsibilities}
       `).join('\n')}
@@ -404,35 +401,39 @@ export default function ResumeBuilderPage() {
               </AnimatePresence>
               
               <div className="flex justify-between items-center pt-4">
-                {currentStep > 1 && currentStep <= steps.length && (
-                  <Button type="button" variant="outline" onClick={prevStep}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Previous
-                  </Button>
-                )}
-                <div className="flex-grow"></div>
-                {currentStep < steps.length && (
-                  <Button type="button" onClick={nextStep}>
-                    Next
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
+                <div>
+                  {currentStep > 1 && (
+                    <Button type="button" variant="outline" onClick={prevStep}>
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Previous
+                    </Button>
+                  )}
+                </div>
 
-                {currentStep === steps.length && (
-                   <Button type="submit" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Resume
-                      </>
-                    )}
-                  </Button>
-                )}
+                <div>
+                  {currentStep < steps.length && (
+                    <Button type="button" onClick={nextStep}>
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  )}
+
+                  {currentStep === steps.length && (
+                    <Button type="submit" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate Resume
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
             </form>
           </Form>
