@@ -59,6 +59,7 @@ export default function AtsAnalyzerPage() {
     if (!file) return;
 
     setIsFileLoading(true);
+    form.clearErrors("resumeText");
 
     try {
       if (file.type === "text/plain") {
