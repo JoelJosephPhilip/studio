@@ -6,7 +6,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette } from "lucide-react";
+import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette, FileText } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -580,10 +580,12 @@ export default function ResumeBuilderPage() {
                     <div id="resume-preview" ref={resumePreviewRef} className="bg-white text-black">
                       <SelectedTemplate resume={generationResult.resume} photo={photoPreview} />
                     </div>
-                    <Button onClick={downloadPdf} disabled={isLoading}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download as PDF
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button onClick={downloadPdf} disabled={isLoading}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Download as PDF
+                        </Button>
+                    </div>
                  </div>
             )}
         </CardContent>
