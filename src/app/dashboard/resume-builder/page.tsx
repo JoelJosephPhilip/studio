@@ -268,7 +268,7 @@ export default function ResumeBuilderPage() {
       }
     });
   
-    saveAs(fileBuffer, 'resume.docx');
+    saveAs(fileBuffer as Blob, 'resume.docx');
   };
 
   const downloadImage = async () => {
