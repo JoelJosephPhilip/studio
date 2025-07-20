@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, Download, Upload } from "lucide-react";
+import { Loader2, Sparkles, Download, Upload, Lightbulb, CheckCircle, XCircle, FileText } from "lucide-react";
 
 import {
   Card,
@@ -22,6 +22,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -33,7 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 const formSchema = z.object({
   resumeText: z.string(),
   resumeFile: z.any().optional(),
-}).refine(data => data.resumeText.length > 100 || data.resumeFile, {
+}).refine(data => data.resumeText.length > 50 || data.resumeFile, {
   message: "Please paste your full resume text or upload a file.",
   path: ["resumeText"],
 });
@@ -43,6 +49,7 @@ type FormSchemaType = z.infer<typeof formSchema>;
 export default function AtsAnalyzerPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResumeAtsOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -58,7 +65,8 @@ export default function AtsAnalyzerPage() {
     if (!file) return;
 
     form.setValue("resumeFile", file);
-    // Show the file name to the user for better UX
+    setFileName(file.name);
+    // satisfy validation while file is selected
     form.setValue("resumeText", `File uploaded: ${file.name}`);
     form.clearErrors("resumeText");
   };
@@ -78,23 +86,20 @@ export default function AtsAnalyzerPage() {
 
     try {
       let result;
-      if (values.resumeFile) {
-        const file = values.resumeFile as File;
-        if (file.type === "application/pdf") {
-          const pdfDataUri = await fileToDataUri(file);
-          result = await analyzeResumeAtsPdf({ pdfDataUri });
-        } else if (file.type === "text/plain") {
-          const text = await file.text();
-          result = await analyzeResumeAts({ resumeText: text });
-        } else {
-           toast({
-            variant: "destructive",
-            title: "Invalid File Type",
-            description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
-          });
-          setIsLoading(false);
-          return;
-        }
+      const file = values.resumeFile as File | undefined;
+
+      if (file) {
+         if (file.type !== 'application/pdf') {
+            toast({
+              variant: "destructive",
+              title: "Invalid File Type",
+              description: "Please upload a PDF (.pdf) file.",
+            });
+            setIsLoading(false);
+            return;
+         }
+        const pdfDataUri = await fileToDataUri(file);
+        result = await analyzeResumeAtsPdf({ pdfDataUri });
       } else {
         result = await analyzeResumeAts({
           resumeText: values.resumeText,
@@ -121,12 +126,22 @@ ATS Resume Analysis Report
 
 Overall Score: ${analysisResult.atsReadinessScore}/100
 
-Feedback:
----------
-${analysisResult.feedback}
+Detailed Breakdown:
+-------------------
+Keyword Optimization: ${analysisResult.keywordOptimization.score}/100
+- ${analysisResult.keywordOptimization.feedback}
 
-Suggestions:
-------------
+Clarity & Conciseness: ${analysisResult.clarityAndConciseness.score}/100
+- ${analysisResult.clarityAndConciseness.feedback}
+
+Formatting & Structure: ${analysisResult.formattingAndStructure.score}/100
+- ${analysisResult.formattingAndStructure.feedback}
+
+Action Verbs: ${analysisResult.actionVerbs.score}/100
+- ${analysisResult.actionVerbs.feedback}
+
+Suggestions for Improvement:
+----------------------------
 ${analysisResult.suggestions}
     `;
     const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
@@ -139,6 +154,13 @@ ${analysisResult.suggestions}
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+  
+  const analysisSections = analysisResult ? [
+      { title: "Keyword Optimization", data: analysisResult.keywordOptimization },
+      { title: "Clarity & Conciseness", data: analysisResult.clarityAndConciseness },
+      { title: "Formatting & Structure", data: analysisResult.formattingAndStructure },
+      { title: "Action Verbs", data: analysisResult.actionVerbs },
+  ] : [];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -165,21 +187,23 @@ ${analysisResult.suggestions}
                           onClick={() => fileInputRef.current?.click()}
                         >
                           <Upload className="mr-2 h-4 w-4" />
-                          Upload Resume
+                          Upload PDF
                         </Button>
                         <Input
                           type="file"
                           className="hidden"
                           ref={fileInputRef}
                           onChange={handleFileChange}
-                          accept=".txt,.pdf"
+                          accept=".pdf"
                         />
                     </div>
                     <FormControl>
                       <Textarea
-                        placeholder="Paste the full text of your resume here, or upload a .txt or .pdf file..."
+                        placeholder="Paste the full text of your resume here, or upload a .pdf file..."
                         className="min-h-[300px]"
                         {...field}
+                        value={fileName ? `File uploaded: ${fileName}`: field.value}
+                        readOnly={!!fileName}
                       />
                     </FormControl>
                     <FormMessage />
@@ -221,33 +245,48 @@ ${analysisResult.suggestions}
 
           {!isLoading && !analysisResult && (
             <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg min-h-[400px]">
+              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="font-bold text-xl">Ready for Analysis</h3>
-              <p className="text-muted-foreground">Paste your resume and click analyze to see the report.</p>
+              <p className="text-muted-foreground">Paste your resume or upload a PDF to see the report.</p>
             </div>
           )}
 
           {analysisResult && (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-semibold">Overall ATS Score</h4>
-                  <span className="font-bold text-lg text-primary">{analysisResult.atsReadinessScore}/100</span>
+              <div className="space-y-2 text-center p-4 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold text-lg">Overall ATS Score</h4>
+                <div className="relative inline-flex items-center justify-center">
+                    <Progress value={analysisResult.atsReadinessScore} className="w-32 h-32 rounded-full absolute" style={{ clipPath: 'circle(50% at 50% 50%)' }} />
+                    <span className="font-bold text-3xl text-primary">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
                 </div>
-                <Progress value={analysisResult.atsReadinessScore} className="w-full" />
               </div>
 
+              <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
+                {analysisSections.map((section, index) => (
+                    <AccordionItem value={`item-${index}`} key={section.title}>
+                        <AccordionTrigger>
+                            <div className="flex items-center gap-4 w-full">
+                                <div className="flex-1">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <h4 className="font-semibold">{section.title}</h4>
+                                        <span className="font-semibold text-primary">{section.data.score}/100</span>
+                                    </div>
+                                    <Progress value={section.data.score} className="h-2" />
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{section.data.feedback}</p>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+              </Accordion>
+              
               <Separator />
 
-              <div className="space-y-4 max-h-[600px] overflow-auto pr-4">
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Feedback</h4>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{analysisResult.feedback}</p>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Suggestions for Improvement</h4>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{analysisResult.suggestions}</p>
-                </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold text-lg flex items-center gap-2"><Lightbulb className="text-yellow-500" />Suggestions for Improvement</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-accent/20 p-4 rounded-md">{analysisResult.suggestions}</p>
               </div>
 
               <Button onClick={downloadReport}>

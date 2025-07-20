@@ -22,20 +22,23 @@ export type AnalyzeResumeAtsPdfInput = z.infer<
   typeof AnalyzeResumeAtsPdfInputSchema
 >;
 
+const AnalysisCategorySchema = z.object({
+  score: z.number().describe('The score for this category (0-100).'),
+  feedback: z.string().describe('Detailed feedback for this category.'),
+});
+
+
 const AnalyzeResumeAtsPdfOutputSchema = z.object({
   atsReadinessScore: z
     .number()
     .describe(
-      'A score indicating the ATS readiness of the resume (0-100, higher is better).'
+      'An overall score indicating the ATS readiness of the resume (0-100, higher is better).'
     ),
-  feedback: z
-    .string()
-    .describe(
-      'Detailed feedback on grammar, keyword density, and format compliance.'
-    ),
-  suggestions: z
-    .string()
-    .describe('Specific suggestions to improve ATS compliance.'),
+  keywordOptimization: AnalysisCategorySchema.describe('Analysis of keyword optimization.'),
+  clarityAndConciseness: AnalysisCategorySchema.describe('Analysis of clarity and conciseness.'),
+  formattingAndStructure: AnalysisCategorySchema.describe('Analysis of formatting and structure.'),
+  actionVerbs: AnalysisCategorySchema.describe('Analysis of the use of action verbs.'),
+  suggestions: z.string().describe('Specific, actionable suggestions to improve the resume overall.'),
 });
 export type AnalyzeResumeAtsPdfOutput = z.infer<
   typeof AnalyzeResumeAtsPdfOutputSchema
@@ -53,16 +56,11 @@ const atsAnalysisPdfPrompt = ai.definePrompt({
   output: {schema: AnalyzeResumeAtsPdfOutputSchema},
   prompt: `You are an expert resume analyst specializing in Applicant Tracking System (ATS) compliance.
 
-  Extract the text from the following resume PDF. Then, provide a detailed analysis covering the following points:
-  1.  **Keyword Optimization**: How well does the resume use relevant keywords?
-  2.  **Formatting**: Is the resume format clean, professional, and easy for an ATS to parse?
-  3.  **Clarity and Conciseness**: Is the language clear and to the point?
-  4.  **Action Verbs**: Does the resume use strong action verbs to describe accomplishments?
+  Extract the text from the following resume PDF. Then, for each of the four main categories (Keyword Optimization, Clarity and Conciseness, Formatting and Structure, Action Verbs), provide a score from 0-100 and detailed feedback explaining the score.
   
-  Based on your analysis, provide:
-  - An overall "ATS Readiness Score" from 0 to 100.
-  - A "Feedback" section that explains the reasoning behind the score in detail, covering the points above.
-  - A "Suggestions" section with specific, actionable advice on how to improve the resume.
+  Then, provide an overall "ATS Readiness Score" which is the average of the four category scores.
+  
+  Finally, provide a "Suggestions" string with specific, actionable advice on how to improve the resume.
 
   Resume PDF:
   {{media url=pdfDataUri}}`,
