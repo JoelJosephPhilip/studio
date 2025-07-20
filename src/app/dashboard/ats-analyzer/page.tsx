@@ -43,6 +43,7 @@ type FormSchemaType = z.infer<typeof formSchema>;
 export default function AtsAnalyzerPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResumeAtsOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFileLoading, setIsFileLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -53,48 +54,71 @@ export default function AtsAnalyzerPage() {
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type === "text/plain") {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        form.setValue("resumeText", text);
-      };
-      reader.readAsText(file);
-    } else if (file.type === "application/pdf") {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const data = event.target?.result as ArrayBuffer;
+    setIsFileLoading(true);
+
+    const processFile = async () => {
+      if (file.type === "text/plain") {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          form.setValue("resumeText", text, { shouldValidate: true });
+          setIsFileLoading(false);
+        };
+        reader.readAsText(file);
+      } else if (file.type === "application/pdf") {
         try {
-          const loadingTask = pdfjs.getDocument({ data });
-          const pdf = await loadingTask.promise;
-          let fullText = "";
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => 'str' in item ? item.str : '').join(" ");
-            fullText += pageText + "\n";
-          }
-          form.setValue("resumeText", fullText);
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            const data = event.target?.result as ArrayBuffer;
+            try {
+              const loadingTask = pdfjs.getDocument({ data });
+              const pdf = await loadingTask.promise;
+              let fullText = "";
+              for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => 'str' in item ? item.str : '').join(" ");
+                fullText += pageText + "\n";
+              }
+              form.setValue("resumeText", fullText, { shouldValidate: true });
+            } catch (error) {
+              console.error("Error parsing PDF:", error);
+              toast({
+                variant: "destructive",
+                title: "PDF Parsing Error",
+                description: "Could not extract text from the PDF file.",
+              });
+            } finally {
+              setIsFileLoading(false);
+            }
+          };
+          reader.readAsArrayBuffer(file);
         } catch (error) {
-          console.error("Error parsing PDF:", error);
-          toast({
+          console.error("Error reading PDF file:", error);
+           toast({
             variant: "destructive",
-            title: "PDF Parsing Error",
-            description: "Could not extract text from the PDF file.",
+            title: "File Read Error",
+            description: "Could not read the selected PDF file.",
           });
+          setIsFileLoading(false);
         }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Invalid File Type",
-        description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
-      });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid File Type",
+          description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
+        });
+        setIsFileLoading(false);
+      }
+    }
+    await processFile();
+    // Clear the file input so the user can upload the same file again
+    if(fileInputRef.current) {
+        fileInputRef.current.value = '';
     }
   };
 
@@ -168,10 +192,11 @@ ${analysisResult.suggestions}
                           type="button"
                           variant="outline"
                           size="sm"
+                          disabled={isFileLoading}
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          <Upload className="mr-2 h-4 w-4" />
-                          Upload Resume
+                          {isFileLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                          {isFileLoading ? 'Loading...' : 'Upload Resume'}
                         </Button>
                         <Input
                           type="file"
@@ -192,7 +217,7 @@ ${analysisResult.suggestions}
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading || isFileLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -267,3 +292,5 @@ ${analysisResult.suggestions}
     </div>
   )
 }
+
+    
