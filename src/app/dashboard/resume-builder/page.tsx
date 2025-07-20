@@ -151,7 +151,7 @@ export default function ResumeBuilderPage() {
                   <FormItem>
                     <FormLabel>Photo (Optional)</FormLabel>
                     <FormControl>
-                      <>
+                      <div>
                         <Button
                           type="button"
                           variant="outline"
@@ -170,7 +170,7 @@ export default function ResumeBuilderPage() {
                           }}
                           accept="image/*"
                         />
-                      </>
+                      </div>
                     </FormControl>
                     {photoPreview && (
                         <div className="mt-4">
