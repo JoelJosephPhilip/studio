@@ -9,8 +9,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette, FileText, FileWord, Image as ImageIcon } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { saveAs } from 'file-saver';
-import htmlToDocx from 'html-to-docx';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -255,42 +253,8 @@ export default function ResumeBuilderPage() {
     pdf.save('resume.pdf');
   };
 
-  const downloadWord = async () => {
-    const element = resumePreviewRef.current;
-    if (!element) return;
-
-    const fileBuffer = await htmlToDocx(element.outerHTML, undefined, {
-      margins: {
-        top: 720,
-        bottom: 720,
-        left: 720,
-        right: 720
-      }
-    });
-  
-    saveAs(fileBuffer as Blob, 'resume.docx');
-  };
-
-  const downloadImage = async () => {
-    const element = resumePreviewRef.current;
-    if (!element) return;
-  
-    const canvas = await html2canvas(element, {
-      scale: 2, 
-      useCORS: true
-    });
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = 'resume.png';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const selectedTemplateName = form.watch('template');
-  const SelectedTemplate = isMounted ? templates[selectedTemplateName]?.component || ModernTemplate : ModernTemplate;
+  const SelectedTemplate = templates[selectedTemplateName]?.component || ModernTemplate;
 
 
   const renderStepContent = () => {
@@ -620,14 +584,6 @@ export default function ResumeBuilderPage() {
                         <Button onClick={downloadPdf} disabled={isLoading}>
                             <Download className="mr-2 h-4 w-4" />
                             Download as PDF
-                        </Button>
-                        <Button onClick={downloadWord} disabled={isLoading} variant="outline">
-                            <FileWord className="mr-2 h-4 w-4" />
-                            Download as Word
-                        </Button>
-                         <Button onClick={downloadImage} disabled={isLoading} variant="outline">
-                            <ImageIcon className="mr-2 h-4 w-4" />
-                            Download as Image
                         </Button>
                     </div>
                  </div>
