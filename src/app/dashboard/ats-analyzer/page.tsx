@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef } from "react";
@@ -6,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Sparkles, Download, Upload } from "lucide-react";
-import * as pdfjs from "pdfjs-dist";
 
 import {
   Card,
@@ -28,14 +26,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { analyzeResumeAts, AnalyzeResumeAtsOutput } from "@/ai/flows/ats-resume-analyzer";
+import { analyzeResumeAtsPdf } from "@/ai/flows/ats-resume-analyzer-pdf";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
-// Set worker source for pdfjs
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
 const formSchema = z.object({
-  resumeText: z.string().min(100, "Please paste your full resume text or upload a file."),
+  resumeText: z.string(),
+  resumeFile: z.any().optional(),
+}).refine(data => data.resumeText.length > 100 || data.resumeFile, {
+  message: "Please paste your full resume text or upload a file.",
+  path: ["resumeText"],
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -43,7 +43,6 @@ type FormSchemaType = z.infer<typeof formSchema>;
 export default function AtsAnalyzerPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResumeAtsOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isFileLoading, setIsFileLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -54,66 +53,53 @@ export default function AtsAnalyzerPage() {
     },
   });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsFileLoading(true);
+    form.setValue("resumeFile", file);
+    // Show the file name to the user for better UX
+    form.setValue("resumeText", `File uploaded: ${file.name}`);
     form.clearErrors("resumeText");
-
-    try {
-      if (file.type === "text/plain") {
-        const text = await file.text();
-        form.setValue("resumeText", text, { shouldValidate: true });
-      } else if (file.type === "application/pdf") {
-        const reader = new FileReader();
-        const fileData = await new Promise<ArrayBuffer>((resolve) => {
-            reader.onload = (event) => resolve(event.target?.result as ArrayBuffer);
-            reader.readAsArrayBuffer(file);
-        });
-        
-        const loadingTask = pdfjs.getDocument({ data: fileData });
-        const pdf = await loadingTask.promise;
-        let fullText = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => 'str' in item ? item.str : '').join(" ");
-          fullText += pageText + "\n";
-        }
-        form.setValue("resumeText", fullText, { shouldValidate: true });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Invalid File Type",
-          description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
-        });
-      }
-    } catch (error) {
-      console.error("Error processing file:", error);
-      toast({
-        variant: "destructive",
-        title: "File Processing Error",
-        description: "Could not read or parse the selected file.",
-      });
-    } finally {
-      setIsFileLoading(false);
-      // Clear the file input so the user can upload the same file again
-      if(fileInputRef.current) {
-          fileInputRef.current.value = '';
-      }
-    }
   };
 
+  const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
     setAnalysisResult(null);
 
     try {
-      const result = await analyzeResumeAts({
-        resumeText: values.resumeText,
-      });
+      let result;
+      if (values.resumeFile) {
+        const file = values.resumeFile as File;
+        if (file.type === "application/pdf") {
+          const pdfDataUri = await fileToDataUri(file);
+          result = await analyzeResumeAtsPdf({ pdfDataUri });
+        } else if (file.type === "text/plain") {
+          const text = await file.text();
+          result = await analyzeResumeAts({ resumeText: text });
+        } else {
+           toast({
+            variant: "destructive",
+            title: "Invalid File Type",
+            description: "Please upload a plain text (.txt) or PDF (.pdf) file.",
+          });
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        result = await analyzeResumeAts({
+          resumeText: values.resumeText,
+        });
+      }
       setAnalysisResult(result);
     } catch (error) {
       console.error("Error analyzing resume:", error);
@@ -175,11 +161,11 @@ ${analysisResult.suggestions}
                           type="button"
                           variant="outline"
                           size="sm"
-                          disabled={isFileLoading}
+                          disabled={isLoading}
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          {isFileLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                          {isFileLoading ? 'Loading...' : 'Upload Resume'}
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload Resume
                         </Button>
                         <Input
                           type="file"
@@ -200,7 +186,7 @@ ${analysisResult.suggestions}
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isLoading || isFileLoading}>
+              <Button type="submit" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
