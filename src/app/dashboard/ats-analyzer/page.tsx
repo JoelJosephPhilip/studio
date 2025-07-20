@@ -257,9 +257,9 @@ ${analysisResult.suggestions}
               <div className="space-y-2 text-center p-4 bg-muted/50 rounded-lg">
                 <h4 className="font-semibold text-lg">Overall ATS Score</h4>
                 <div className="relative w-32 h-32 mx-auto">
-                    <Progress value={analysisResult.atsReadinessScore} className="absolute inset-0 w-full h-full rounded-full" style={{ clipPath: 'circle(50% at 50% 50%)' }} />
+                    <Progress value={analysisResult.atsReadinessScore} className="absolute inset-0 w-full h-full rounded-full" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-bold text-3xl text-primary">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
+                        <span className="font-bold text-3xl text-primary-foreground">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
                     </div>
                 </div>
               </div>
