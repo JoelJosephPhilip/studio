@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCreateUserWithEmailAndPassword } from 'react-firebase-hooks/auth';
@@ -84,13 +84,15 @@ export default function SignupPage() {
     }
   };
 
-  if (error) {
-    toast({
-      variant: 'destructive',
-      title: 'Sign Up Error',
-      description: error.message,
-    });
-  }
+  useEffect(() => {
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign Up Error',
+        description: error.message,
+      });
+    }
+  }, [error, toast]);
 
   return (
     <Card className="mx-auto max-w-sm">

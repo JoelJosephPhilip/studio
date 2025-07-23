@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -74,13 +75,15 @@ export default function LoginPage() {
     router.push('/dashboard');
   }
 
-  if (error) {
-    toast({
-      variant: 'destructive',
-      title: 'Login Error',
-      description: error.message,
-    });
-  }
+  useEffect(() => {
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Login Error',
+        description: error.message,
+      });
+    }
+  }, [error, toast]);
 
   return (
     <Card className="mx-auto max-w-sm">
