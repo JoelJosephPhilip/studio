@@ -31,6 +31,9 @@ export default function DashboardLayout({
             <Logo />
           </div>
           <DashboardNav />
+          <div className="mt-auto p-4">
+            <ThemeToggle />
+          </div>
         </div>
       </div>
       <div className="flex flex-col">
