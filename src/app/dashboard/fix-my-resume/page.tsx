@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
+import { fixMyResume } from "@/ai/flows/fix-my-resume";
+import type { FixMyResumeOutput } from "@/ai/schemas/fix-my-resume-schemas";
 import { Textarea } from "@/components/ui/textarea";
 
 // Setup for PDF.js worker

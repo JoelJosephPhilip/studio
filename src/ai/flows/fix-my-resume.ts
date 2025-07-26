@@ -10,11 +10,8 @@ import {ai} from '@/ai/genkit';
 import {
   FixMyResumeInputSchema,
   FixMyResumeOutputSchema,
-  type FixMyResumeInput,
-  type FixMyResumeOutput,
 } from '@/ai/schemas/fix-my-resume-schemas';
-
-export { type FixMyResumeInput, type FixMyResumeOutput } from '@/ai/schemas/fix-my-resume-schemas';
+import type { FixMyResumeInput, FixMyResumeOutput } from '@/ai/schemas/fix-my-resume-schemas';
 
 export async function fixMyResume(input: FixMyResumeInput): Promise<FixMyResumeOutput> {
   return fixMyResumeFlow(input);
