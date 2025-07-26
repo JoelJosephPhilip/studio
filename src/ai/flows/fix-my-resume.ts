@@ -4,26 +4,17 @@
  * @fileOverview A flow to intelligently rewrite a resume based on an ATS analysis report.
  *
  * - fixMyResume - A function that handles the resume improvement process.
- * - FixMyResumeInput - The input type for the fixMyResume function.
- * - FixMyResumeOutput - The return type for the fixMyResume function.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {
+  FixMyResumeInputSchema,
+  FixMyResumeOutputSchema,
+  type FixMyResumeInput,
+  type FixMyResumeOutput,
+} from '@/ai/schemas/fix-my-resume-schemas';
 
-export const FixMyResumeInputSchema = z.object({
-  resumeText: z.string().describe('The full text content of the user\'s original resume.'),
-  atsReportText: z.string().describe('The full text content of the ATS analysis report for the resume.'),
-});
-export type FixMyResumeInput = z.infer<typeof FixMyResumeInputSchema>;
-
-
-export const FixMyResumeOutputSchema = z.object({
-  improvedResumeText: z.string().describe('The full text of the improved and rewritten resume.'),
-  changesSummary: z.array(z.string()).describe('A bulleted list summarizing the key changes made to the resume.'),
-});
-export type FixMyResumeOutput = z.infer<typeof FixMyResumeOutputSchema>;
-
+export { type FixMyResumeInput, type FixMyResumeOutput } from '@/ai/schemas/fix-my-resume-schemas';
 
 export async function fixMyResume(input: FixMyResumeInput): Promise<FixMyResumeOutput> {
   return fixMyResumeFlow(input);
