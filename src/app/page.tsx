@@ -112,7 +112,7 @@ export default function LandingPage() {
                 height="400"
                 alt="Hero"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
-                data-ai-hint="woman resume"
+                data-ai-hint="futuristic professional"
               />
             </div>
           </div>
