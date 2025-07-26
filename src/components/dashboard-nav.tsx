@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Search,
   Settings,
+  Wand,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ const navItems = [
     { href: '/dashboard/resume-builder', label: 'Resume Builder', icon: FileText },
     { href: '/dashboard/cover-letter', label: 'Cover Letter', icon: Mail },
     { href: '/dashboard/ats-analyzer', label: 'ATS Analyzer', icon: BarChart3 },
+    { href: '/dashboard/fix-my-resume', label: 'Fix My Resume', icon: Wand },
     { href: '/dashboard/jd-matcher', label: 'JD Matcher', icon: Search },
     { href: '/dashboard/interview-coach', label: 'Interview Coach', icon: MessageSquare },
     { href: '/dashboard/job-search', label: 'Job Search', icon: Briefcase },
