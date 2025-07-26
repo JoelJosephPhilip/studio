@@ -108,12 +108,11 @@ export default function LandingPage() {
                 </div>
               </div>
               <Image
-                src="https://placehold.co/600x400.png"
+                src="https://images.unsplash.com/photo-1603796846097-bee99e4a601f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyMHx8cmVzdW1lfGVufDB8fHx8MTc1MzUwNTU4Nnww&ixlib=rb-4.1.0&q=80&w=1080"
                 width="600"
                 height="400"
                 alt="Hero"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
-                data-ai-hint="woman resume"
               />
             </div>
           </div>
