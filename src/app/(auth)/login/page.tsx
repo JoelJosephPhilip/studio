@@ -55,25 +55,21 @@ export default function LoginPage() {
 
   const onSubmit = async (values: FormSchemaType) => {
     try {
-      const success = await signInWithEmailAndPassword(
+      await signInWithEmailAndPassword(
         values.email,
         values.password
       );
-      if (success) {
-        router.push('/dashboard');
-      }
     } catch (e: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Login Failed',
-        description: e.message,
-      });
+        // This catch block might not be necessary if the hook's error state is used.
     }
   };
   
-  if (user) {
-    router.push('/dashboard');
-  }
+  useEffect(() => {
+    if (user) {
+      router.push('/dashboard');
+    }
+  }, [user, router]);
+
 
   useEffect(() => {
     if (error) {
