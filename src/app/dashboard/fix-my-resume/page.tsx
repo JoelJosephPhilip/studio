@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, AlertTriangle, Wand } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import jsPDF from "jspdf";
 
 import {
@@ -33,7 +33,10 @@ import type { FixMyResumeOutput } from "@/ai/schemas/fix-my-resume-schemas";
 import { Textarea } from "@/components/ui/textarea";
 
 // Setup for PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+}
+
 
 const formSchema = z.object({
   resumeFile: z.any().refine(file => file instanceof File, "Resume PDF is required."),
