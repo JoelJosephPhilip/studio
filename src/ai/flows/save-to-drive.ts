@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -7,11 +8,13 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { google } from 'googleapis';
-import { getSession } from 'next-auth/react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getServerSession } from "next-auth/next"
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -25,7 +28,6 @@ const SaveToDriveInputSchema = z.object({
   fileName: z.string().describe('The name of the file to save.'),
   fileContent: z.string().describe('The content of the file, base64 encoded.'),
   mimeType: z.string().describe('The MIME type of the file.'),
-  userId: z.string().describe('The user ID to retrieve auth tokens.'),
 });
 
 export type SaveToDriveInput = z.infer<typeof SaveToDriveInputSchema>;
@@ -49,12 +51,18 @@ const saveToDriveFlow = ai.defineFlow(
         outputSchema: SaveToDriveOutputSchema,
     },
     async (input) => {
-        const userDocRef = doc(db, 'users', input.userId, 'private', 'googleAuth');
+        const session = await getServerSession(authOptions);
+        if (!session || !session.user || !session.user.id) {
+            throw new Error('User not authenticated');
+        }
+        const userId = session.user.id;
+
+        const userDocRef = doc(db, 'users', userId, 'private', 'googleAuth');
         const userDoc = await getDoc(userDocRef);
         const tokens = userDoc.data();
 
         if (!tokens || !tokens.accessToken) {
-            throw new Error('User not authenticated with Google');
+            throw new Error('User not authenticated with Google or tokens are missing.');
         }
 
         oauth2Client.setCredentials({
@@ -66,7 +74,6 @@ const saveToDriveFlow = ai.defineFlow(
 
         const fileMetadata = {
             name: input.fileName,
-            parents: ['appDataFolder']
         };
         const media = {
             mimeType: input.mimeType,

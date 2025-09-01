@@ -28,8 +28,6 @@ import CreativeTemplate from "./templates/creative";
 import { GoogleDriveIcon } from "@/components/google-drive-icon";
 import { useToast } from "@/hooks/use-toast";
 import { saveToDrive } from "@/ai/flows/save-to-drive";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
 
 const personalDetailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required."),
@@ -107,7 +105,6 @@ export default function ResumeBuilderPage() {
   const resumePreviewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
-  const [user] = useAuthState(auth);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -280,7 +277,7 @@ export default function ResumeBuilderPage() {
   const handleSaveToDrive = async () => {
     const element = resumePreviewRef.current;
     if (!element) return;
-    if (!session || !user) {
+    if (!session) {
         signIn('google', { callbackUrl: '/dashboard/resume-builder' });
         return;
     }
@@ -318,7 +315,6 @@ export default function ResumeBuilderPage() {
             fileName: 'ai_generated_resume.pdf',
             fileContent: pdfData,
             mimeType: 'application/pdf',
-            userId: user.uid,
         });
 
         toast({

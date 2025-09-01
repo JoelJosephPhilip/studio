@@ -34,8 +34,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { GoogleDriveIcon } from "@/components/google-drive-icon";
 import { Separator } from "@/components/ui/separator";
 import { saveToDrive } from "@/ai/flows/save-to-drive";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
 
 // Setup for PDF.js worker - updated for Next.js compatibility
 if (typeof window !== 'undefined') {
@@ -62,7 +60,6 @@ export default function FixMyResumePage() {
   const reportFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
-  const [user] = useAuthState(auth);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -141,7 +138,7 @@ export default function FixMyResumePage() {
   
   const handleSaveToDrive = async () => {
     if (!analysisResult?.improvedResumeText) return;
-    if (!session || !user) {
+    if (!session) {
         signIn('google', { callbackUrl: '/dashboard/fix-my-resume' });
         return;
     }
@@ -158,7 +155,6 @@ export default function FixMyResumePage() {
             fileName: 'improved_resume.pdf',
             fileContent: pdfData,
             mimeType: 'application/pdf',
-            userId: user.uid,
         });
 
         toast({
