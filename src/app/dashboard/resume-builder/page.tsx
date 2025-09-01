@@ -277,7 +277,7 @@ export default function ResumeBuilderPage() {
   const handleSaveToDrive = async () => {
     const element = resumePreviewRef.current;
     if (!element) return;
-    if (!session) {
+    if (!session || !session.user?.id) {
         signIn('google', { callbackUrl: '/dashboard/resume-builder' });
         return;
     }
@@ -315,6 +315,7 @@ export default function ResumeBuilderPage() {
             fileName: 'ai_generated_resume.pdf',
             fileContent: pdfData,
             mimeType: 'application/pdf',
+            userId: session.user.id,
         });
 
         toast({

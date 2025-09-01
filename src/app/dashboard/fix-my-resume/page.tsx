@@ -138,7 +138,7 @@ export default function FixMyResumePage() {
   
   const handleSaveToDrive = async () => {
     if (!analysisResult?.improvedResumeText) return;
-    if (!session) {
+    if (!session || !session.user?.id) {
         signIn('google', { callbackUrl: '/dashboard/fix-my-resume' });
         return;
     }
@@ -155,6 +155,7 @@ export default function FixMyResumePage() {
             fileName: 'improved_resume.pdf',
             fileContent: pdfData,
             mimeType: 'application/pdf',
+            userId: session.user.id,
         });
 
         toast({

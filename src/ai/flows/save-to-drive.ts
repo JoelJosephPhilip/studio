@@ -12,9 +12,6 @@ import { z } from 'zod';
 import { google } from 'googleapis';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { getServerSession } from "next-auth/next"
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -28,6 +25,7 @@ const SaveToDriveInputSchema = z.object({
   fileName: z.string().describe('The name of the file to save.'),
   fileContent: z.string().describe('The content of the file, base64 encoded.'),
   mimeType: z.string().describe('The MIME type of the file.'),
+  userId: z.string().describe("The user's unique ID."),
 });
 
 export type SaveToDriveInput = z.infer<typeof SaveToDriveInputSchema>;
@@ -51,13 +49,11 @@ const saveToDriveFlow = ai.defineFlow(
         outputSchema: SaveToDriveOutputSchema,
     },
     async (input) => {
-        const session = await getServerSession(authOptions);
-        if (!session || !session.user || !session.user.id) {
+        if (!input.userId) {
             throw new Error('User not authenticated');
         }
-        const userId = session.user.id;
 
-        const userDocRef = doc(db, 'users', userId, 'private', 'googleAuth');
+        const userDocRef = doc(db, 'users', input.userId, 'private', 'googleAuth');
         const userDoc = await getDoc(userDocRef);
         const tokens = userDoc.data();
 
