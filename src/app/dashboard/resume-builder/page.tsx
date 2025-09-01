@@ -121,25 +121,31 @@ export default function ResumeBuilderPage() {
     control: form.control,
     name: "education",
   });
-
-  // Load state from localStorage
+  
+  // Set mounted state
   useEffect(() => {
-    try {
-        const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (savedData) {
-            const parsedData = JSON.parse(savedData);
-            if (parsedData.formData) {
-              form.reset(parsedData.formData);
-            }
-            if(parsedData.photoPreview) {
-              setPhotoPreview(parsedData.photoPreview);
-            }
-        }
-    } catch (error) {
-        console.error("Failed to parse resume data from localStorage", error)
-    }
     setIsMounted(true);
-  }, [form]);
+  }, []);
+
+  // Load state from localStorage once mounted
+  useEffect(() => {
+    if (isMounted) {
+      try {
+          const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (savedData) {
+              const parsedData = JSON.parse(savedData);
+              if (parsedData.formData) {
+                form.reset(parsedData.formData);
+              }
+              if(parsedData.photoPreview) {
+                setPhotoPreview(parsedData.photoPreview);
+              }
+          }
+      } catch (error) {
+          console.error("Failed to parse resume data from localStorage", error)
+      }
+    }
+  }, [isMounted, form]);
 
   // Save state to localStorage
   useEffect(() => {
@@ -156,7 +162,7 @@ export default function ResumeBuilderPage() {
       }
     });
     return () => subscription.unsubscribe();
-  }, [form.watch, photoPreview, isMounted]);
+  }, [isMounted, form.watch, photoPreview]);
 
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,6 +270,10 @@ export default function ResumeBuilderPage() {
 
   const selectedTemplateName = form.watch('template');
   const SelectedTemplate = templates[selectedTemplateName]?.component || ModernTemplate;
+
+  if (!isMounted) {
+    return null; // Or a loading spinner
+  }
 
 
   const renderStepContent = () => {
