@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette, FileText, FileWord, Image as ImageIcon } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { signIn, useSession } from "next-auth/react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,10 @@ import ClassicTemplate from "./templates/classic";
 import ModernTemplate from "./templates/modern";
 import CreativeTemplate from "./templates/creative";
 import { GoogleDriveIcon } from "@/components/google-drive-icon";
+import { useToast } from "@/hooks/use-toast";
+import { saveToDrive } from "@/ai/flows/save-to-drive";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/firebase";
 
 const personalDetailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required."),
@@ -95,10 +100,14 @@ export default function ResumeBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [generationResult, setGenerationResult] = useState<AiResumeBuilderOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resumePreviewRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const { data: session } = useSession();
+  const [user] = useAuthState(auth);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -266,6 +275,66 @@ export default function ResumeBuilderPage() {
     }
     
     pdf.save('resume.pdf');
+  };
+
+  const handleSaveToDrive = async () => {
+    const element = resumePreviewRef.current;
+    if (!element) return;
+    if (!session || !user) {
+        signIn('google', { callbackUrl: '/dashboard/resume-builder' });
+        return;
+    }
+
+    setIsSaving(true);
+    try {
+        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL('image/png');
+
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pdfWidth = 210;
+        const pageHeight = 297;
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = imgWidth / imgHeight;
+        const pdfImgWidth = pdfWidth;
+        const pdfImgHeight = pdfImgWidth / ratio;
+
+        let position = 0;
+        let heightLeft = pdfImgHeight;
+
+        pdf.addImage(imgData, 'PNG', 0, position, pdfImgWidth, pdfImgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+            position = heightLeft - pdfImgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, pdfImgWidth, pdfImgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        const pdfData = pdf.output('datauristring').split(',')[1];
+
+        await saveToDrive({
+            fileName: 'ai_generated_resume.pdf',
+            fileContent: pdfData,
+            mimeType: 'application/pdf',
+            userId: user.uid,
+        });
+
+        toast({
+            title: "Successfully Saved!",
+            description: "Your resume has been saved to Google Drive.",
+        });
+    } catch (error) {
+        console.error("Error saving to drive: ", error);
+        toast({
+            variant: "destructive",
+            title: "Save Failed",
+            description: "Could not save to Google Drive. Please try again.",
+        });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   const selectedTemplateName = form.watch('template');
@@ -619,9 +688,9 @@ export default function ResumeBuilderPage() {
                             <Download className="mr-2 h-4 w-4" />
                             Download as PDF
                         </Button>
-                         <Button variant="outline">
-                            <GoogleDriveIcon className="mr-2 h-4 w-4" />
-                            Save to Google Drive
+                         <Button variant="outline" onClick={handleSaveToDrive} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleDriveIcon className="mr-2 h-4 w-4" />}
+                            {isSaving ? "Saving..." : "Save to Google Drive"}
                         </Button>
                     </div>
                  </div>

@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
+import { signIn } from 'next-auth/react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Separator } from '@/components/ui/separator';
+import { GoogleDriveIcon } from '@/components/google-drive-icon';
 
 const formSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -135,6 +138,11 @@ export default function LoginPage() {
             </Button>
           </form>
         </Form>
+        <Separator className="my-4" />
+        <Button variant="outline" className="w-full" onClick={() => signIn('google', { callbackUrl: '/dashboard' })}>
+          <GoogleDriveIcon className="mr-2 h-4 w-4" />
+          Sign in with Google
+        </Button>
         <div className="mt-4 text-center text-sm">
           Don&apos;t have an account?{' '}
           <Link href="/signup" className="underline">

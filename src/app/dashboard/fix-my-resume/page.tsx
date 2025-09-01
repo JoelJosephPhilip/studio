@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import jsPDF from "jspdf";
+import { signIn, useSession } from "next-auth/react";
 
 import {
   Card,
@@ -32,6 +33,9 @@ import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
 import { GoogleDriveIcon } from "@/components/google-drive-icon";
 import { Separator } from "@/components/ui/separator";
+import { saveToDrive } from "@/ai/flows/save-to-drive";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/firebase";
 
 // Setup for PDF.js worker - updated for Next.js compatibility
 if (typeof window !== 'undefined') {
@@ -51,11 +55,14 @@ type FormSchemaType = z.infer<typeof formSchema>;
 export default function FixMyResumePage() {
   const [analysisResult, setAnalysisResult] = useState<FixMyResumeOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [reportFileName, setReportFileName] = useState<string | null>(null);
   const resumeFileRef = useRef<HTMLInputElement>(null);
   const reportFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const [user] = useAuthState(auth);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -130,6 +137,44 @@ export default function FixMyResumePage() {
     const lines = pdf.splitTextToSize(text, 180);
     pdf.text(lines, 15, 15);
     pdf.save("improved_resume.pdf");
+  };
+  
+  const handleSaveToDrive = async () => {
+    if (!analysisResult?.improvedResumeText) return;
+    if (!session || !user) {
+        signIn('google', { callbackUrl: '/dashboard/fix-my-resume' });
+        return;
+    }
+    
+    setIsSaving(true);
+    try {
+        const pdf = new jsPDF();
+        const text = analysisResult.improvedResumeText;
+        const lines = pdf.splitTextToSize(text, 180);
+        pdf.text(lines, 15, 15);
+        const pdfData = pdf.output('datauristring').split(',')[1];
+
+        await saveToDrive({
+            fileName: 'improved_resume.pdf',
+            fileContent: pdfData,
+            mimeType: 'application/pdf',
+            userId: user.uid,
+        });
+
+        toast({
+            title: "Successfully Saved!",
+            description: "Your improved resume has been saved to Google Drive.",
+        });
+    } catch (error) {
+        console.error("Error saving to drive: ", error);
+        toast({
+            variant: "destructive",
+            title: "Save Failed",
+            description: "Could not save to Google Drive. Please try again.",
+        });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   return (
@@ -284,9 +329,9 @@ export default function FixMyResumePage() {
                         <Download className="mr-2 h-4 w-4" />
                         Download as PDF
                     </Button>
-                    <Button variant="outline">
-                        <GoogleDriveIcon className="mr-2 h-4 w-4" />
-                        Save to Google Drive
+                    <Button variant="outline" onClick={handleSaveToDrive} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleDriveIcon className="mr-2 h-4 w-4" />}
+                        {isSaving ? "Saving..." : "Save to Google Drive"}
                     </Button>
                  </div>
               </motion.div>
