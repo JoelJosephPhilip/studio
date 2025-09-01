@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCreateUserWithEmailAndPassword } from 'react-firebase-hooks/auth';
@@ -19,7 +20,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -62,27 +62,27 @@ export default function SignupPage() {
         values.password
       );
       if (newUser) {
-        // Create a user document in Firestore
         await setDoc(doc(db, 'users', newUser.user.uid), {
           uid: newUser.user.uid,
           email: newUser.user.email,
           displayName: values.fullName,
           createdAt: new Date(),
         });
+      }
+    } catch (e: any) {
+      // Error is handled by the hook's error state
+    }
+  };
+  
+  useEffect(() => {
+    if(user) {
         toast({
           title: 'Account Created',
           description: 'Welcome to CareerForge AI!',
         });
         router.push('/dashboard');
-      }
-    } catch (e: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Sign Up Failed',
-        description: e.message,
-      });
     }
-  };
+  }, [user, router, toast])
 
   useEffect(() => {
     if (error) {

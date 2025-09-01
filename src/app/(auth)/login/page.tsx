@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -18,7 +19,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -52,15 +52,8 @@ export default function LoginPage() {
     },
   });
 
-  const onSubmit = async (values: FormSchemaType) => {
-    try {
-      await signInWithEmailAndPassword(
-        values.email,
-        values.password
-      );
-    } catch (e: any) {
-        // This catch block might not be necessary if the hook's error state is used.
-    }
+  const onSubmit = (values: FormSchemaType) => {
+    signInWithEmailAndPassword(values.email, values.password);
   };
   
   useEffect(() => {
