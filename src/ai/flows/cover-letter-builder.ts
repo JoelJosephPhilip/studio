@@ -12,18 +12,19 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateCoverLetterInputSchema = z.object({
-  resume: z
+  resumeText: z
     .string()
     .describe('The resume content to generate the cover letter from.'),
   jobDescription: z
     .string()
-    .optional()
     .describe('The job description to tailor the cover letter to.'),
+  jobTitle: z.string().describe('The job title for the position.'),
+  companyName: z.string().describe('The name of the company.'),
 });
 export type GenerateCoverLetterInput = z.infer<typeof GenerateCoverLetterInputSchema>;
 
 const GenerateCoverLetterOutputSchema = z.object({
-  coverLetter: z.string().describe('The generated cover letter.'),
+  coverLetter: z.string().describe('The generated cover letter text.'),
 });
 export type GenerateCoverLetterOutput = z.infer<typeof GenerateCoverLetterOutputSchema>;
 
@@ -35,15 +36,24 @@ const prompt = ai.definePrompt({
   name: 'coverLetterPrompt',
   input: {schema: GenerateCoverLetterInputSchema},
   output: {schema: GenerateCoverLetterOutputSchema},
-  prompt: `You are an expert career advisor. Generate a compelling cover letter based on the provided resume and job description.
+  prompt: `You are a professional career consultant. Your task is to write a personalized, ATS-friendly, professional cover letter for the role of {{{jobTitle}}} at {{{companyName}}}.
 
-Resume:
-{{{resume}}}
-
-Job Description (if available):
+Here is the user’s resume content:
+---
+{{{resumeText}}}
+---
+Here is the job description:
+---
 {{{jobDescription}}}
+---
 
-Cover Letter:`,
+Please adhere to the following guidelines:
+- Highlight the most relevant experiences from the resume that match the job description.
+- Naturally incorporate keywords from the job description.
+- Use a confident yet concise and professional tone.
+- Structure the letter with: A professional greeting, a strong opening paragraph, 2-3 paragraphs highlighting key achievements and skills, and a clear closing with a call to action.
+- Ensure the final output is limited to one page in length.
+`,
 });
 
 const generateCoverLetterFlow = ai.defineFlow(
