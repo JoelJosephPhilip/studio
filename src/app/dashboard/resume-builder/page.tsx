@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import ClassicTemplate from "./templates/classic";
 import ModernTemplate from "./templates/modern";
 import CreativeTemplate from "./templates/creative";
+import { GoogleDriveIcon } from "@/components/google-drive-icon";
 
 const personalDetailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required."),
@@ -270,7 +271,22 @@ export default function ResumeBuilderPage() {
       case 1:
         return (
           <motion.div key="step1" initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -300, opacity: 0 }} className="space-y-4">
-            <h3 className="font-headline text-xl">Personal Details</h3>
+            <div className="space-y-2">
+                <h3 className="font-headline text-xl">Personal Details</h3>
+                <p className="text-sm text-muted-foreground">
+                    You can start from scratch, or import a resume to get started.
+                </p>
+                <div className="flex gap-2">
+                    <Button type="button" variant="outline">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload from Device
+                    </Button>
+                    <Button type="button" variant="outline">
+                        <GoogleDriveIcon className="mr-2 h-4 w-4" />
+                        Import from Google Drive
+                    </Button>
+                </div>
+            </div>
             <FormField control={form.control} name="personalDetails.fullName" render={({ field }) => (
               <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
             )} />
@@ -592,6 +608,10 @@ export default function ResumeBuilderPage() {
                         <Button onClick={downloadPdf} disabled={isLoading}>
                             <Download className="mr-2 h-4 w-4" />
                             Download as PDF
+                        </Button>
+                         <Button variant="outline">
+                            <GoogleDriveIcon className="mr-2 h-4 w-4" />
+                            Save to Google Drive
                         </Button>
                     </div>
                  </div>

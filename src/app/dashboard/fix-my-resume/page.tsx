@@ -6,8 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, AlertTriangle, Wand } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
 import jsPDF from "jspdf";
 
 import {
@@ -28,15 +28,18 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { fixMyResume } from "@/ai/flows/fix-my-resume";
-import type { FixMyResumeOutput } from "@/ai/schemas/fix-my-resume-schemas";
+import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
+import { GoogleDriveIcon } from "@/components/google-drive-icon";
+import { Separator } from "@/components/ui/separator";
 
-// Setup for PDF.js worker
+// Setup for PDF.js worker - updated for Next.js compatibility
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
 }
-
 
 const formSchema = z.object({
   resumeFile: z.any().refine(file => file instanceof File, "Resume PDF is required."),
@@ -146,16 +149,27 @@ export default function FixMyResumePage() {
                   <FormItem>
                     <FormLabel>Your Resume (PDF)</FormLabel>
                     <FormControl>
-                       <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                          disabled={isLoading}
-                          onClick={() => resumeFileRef.current?.click()}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          {resumeFileName || "Click to upload your resume PDF"}
-                        </Button>
+                      <div className="space-y-2">
+                         <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            disabled={isLoading}
+                            onClick={() => resumeFileRef.current?.click()}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {resumeFileName || "Upload from Device"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            disabled={isLoading}
+                          >
+                            <GoogleDriveIcon className="mr-2 h-4 w-4" />
+                            Import from Google Drive
+                          </Button>
+                      </div>
                     </FormControl>
                      <Input
                         type="file"
@@ -176,16 +190,27 @@ export default function FixMyResumePage() {
                   <FormItem>
                     <FormLabel>ATS Report (PDF or TXT)</FormLabel>
                      <FormControl>
-                       <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                          disabled={isLoading}
-                          onClick={() => reportFileRef.current?.click()}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          {reportFileName || "Click to upload the report"}
-                        </Button>
+                       <div className="space-y-2">
+                         <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            disabled={isLoading}
+                            onClick={() => reportFileRef.current?.click()}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {reportFileName || "Upload from Device"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            disabled={isLoading}
+                          >
+                            <GoogleDriveIcon className="mr-2 h-4 w-4" />
+                            Import from Google Drive
+                          </Button>
+                       </div>
                     </FormControl>
                      <Input
                         type="file"
@@ -254,10 +279,16 @@ export default function FixMyResumePage() {
                     value={analysisResult.improvedResumeText}
                     className="min-h-[400px] text-sm"
                  />
-                 <Button onClick={downloadAsPdf}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download as PDF
-                 </Button>
+                 <div className="flex flex-wrap gap-2">
+                    <Button onClick={downloadAsPdf}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download as PDF
+                    </Button>
+                    <Button variant="outline">
+                        <GoogleDriveIcon className="mr-2 h-4 w-4" />
+                        Save to Google Drive
+                    </Button>
+                 </div>
               </motion.div>
             )}
           </AnimatePresence>
