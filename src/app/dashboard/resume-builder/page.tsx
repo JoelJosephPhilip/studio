@@ -168,7 +168,7 @@ export default function ResumeBuilderPage() {
       }
     });
     return () => subscription.unsubscribe();
-  }, [isMounted, form.watch, photoPreview]);
+  }, [isMounted, form, photoPreview]);
 
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,11 +353,11 @@ export default function ResumeBuilderPage() {
                     You can start from scratch, or import a resume to get started.
                 </p>
                 <div className="flex gap-2">
-                    <Button type="button" variant="outline">
+                    <Button type="button" variant="outline" disabled>
                         <Upload className="mr-2 h-4 w-4" />
                         Upload from Device
                     </Button>
-                    <Button type="button" variant="outline">
+                    <Button type="button" variant="outline" disabled>
                         <GoogleDriveIcon className="mr-2 h-4 w-4" />
                         Import from Google Drive
                     </Button>

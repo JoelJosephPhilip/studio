@@ -145,10 +145,15 @@ export default function FixMyResumePage() {
     
     setIsSaving(true);
     try {
-        const pdf = new jsPDF();
+        const pdf = new jsPDF({
+            orientation: 'p',
+            unit: 'pt',
+            format: 'a4'
+        });
         const text = analysisResult.improvedResumeText;
-        const lines = pdf.splitTextToSize(text, 180);
-        pdf.text(lines, 15, 15);
+        const lines = pdf.splitTextToSize(text, 550);
+        pdf.setFontSize(12);
+        pdf.text(lines, 20, 20);
         const pdfData = pdf.output('datauristring').split(',')[1];
 
         await saveToDrive({
@@ -206,7 +211,7 @@ export default function FixMyResumePage() {
                             type="button"
                             variant="outline"
                             className="w-full justify-start text-left font-normal"
-                            disabled={isLoading}
+                            disabled={true}
                           >
                             <GoogleDriveIcon className="mr-2 h-4 w-4" />
                             Import from Google Drive
@@ -247,7 +252,7 @@ export default function FixMyResumePage() {
                             type="button"
                             variant="outline"
                             className="w-full justify-start text-left font-normal"
-                            disabled={isLoading}
+                            disabled={true}
                           >
                             <GoogleDriveIcon className="mr-2 h-4 w-4" />
                             Import from Google Drive
