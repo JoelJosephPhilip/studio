@@ -9,7 +9,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 const SaveResumeToDbInputSchema = z.object({
@@ -48,12 +48,10 @@ const saveResumeToDbFlow = ai.defineFlow(
         const docRef = await addDoc(resumesCollectionRef, {
             title: input.title,
             content: input.resumeText,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
         });
 
         return { resumeId: docRef.id };
     }
 );
-
-    
