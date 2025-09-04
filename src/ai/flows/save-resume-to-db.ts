@@ -9,8 +9,17 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin SDK if not already initialized
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  });
+}
+
+const db = admin.firestore();
 
 const SaveResumeToDbInputSchema = z.object({
   userId: z.string().describe("The user's unique ID."),
@@ -43,9 +52,9 @@ const saveResumeToDbFlow = ai.defineFlow(
             throw new Error('User not authenticated');
         }
 
-        const resumesCollectionRef = collection(db, 'users', input.userId, 'resumes');
+        const resumesCollectionRef = db.collection('users').doc(input.userId).collection('resumes');
         
-        const docRef = await addDoc(resumesCollectionRef, {
+        const docRef = await resumesCollectionRef.add({
             title: input.title,
             content: input.resumeText,
             createdAt: new Date(),
