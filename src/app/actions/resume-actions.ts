@@ -8,8 +8,7 @@
  */
 
 import { z } from 'zod';
-import { collection, addDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import * as admin from 'firebase-admin';
 
 const SaveResumeToDbInputSchema = z.object({
   userId: z.string().describe("The user's unique ID."),
@@ -25,16 +24,34 @@ const SaveResumeToDbOutputSchema = z.object({
 
 export type SaveResumeToDbOutput = z.infer<typeof SaveResumeToDbOutputSchema>;
 
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  try {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: privateKey,
+      }),
+    });
+  } catch (error) {
+    console.error('Firebase admin initialization error:', error);
+  }
+}
+
+const db = admin.firestore();
+
 export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveResumeToDbOutput> {
   try {
     if (!input.userId) {
       throw new Error('User not authenticated');
     }
 
-    const userDocRef = doc(db, 'users', input.userId);
-    const resumesCollectionRef = collection(userDocRef, 'resumes');
+    const resumesCollectionRef = db.collection('users').doc(input.userId).collection('resumes');
     
-    const docRef = await addDoc(resumesCollectionRef, {
+    const docRef = await resumesCollectionRef.add({
         title: input.title,
         content: input.resumeText,
         createdAt: new Date(),
