@@ -11,16 +11,6 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  });
-}
-
-const db = admin.firestore();
-
 const SaveResumeToDbInputSchema = z.object({
   userId: z.string().describe("The user's unique ID."),
   title: z.string().describe('The title of the resume.'),
@@ -48,6 +38,16 @@ const saveResumeToDbFlow = ai.defineFlow(
         outputSchema: SaveResumeToDbOutputSchema,
     },
     async (input) => {
+        // Initialize Firebase Admin SDK if not already initialized
+        if (!admin.apps.length) {
+            admin.initializeApp({
+                credential: admin.credential.applicationDefault(),
+                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+            });
+        }
+
+        const db = admin.firestore();
+        
         if (!input.userId) {
             throw new Error('User not authenticated');
         }
