@@ -10,6 +10,7 @@ import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand, Save 
 import * as pdfjsLib from "pdfjs-dist";
 import jsPDF from "jspdf";
 import { useSession } from "next-auth/react";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 import {
   Card,
@@ -32,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
 import { saveResumeToDb } from "@/ai/flows/save-resume-to-db";
+import { auth } from "@/lib/firebase";
 
 // Setup for PDF.js worker - updated for Next.js compatibility
 if (typeof window !== 'undefined') {
@@ -58,6 +60,7 @@ export default function FixMyResumePage() {
   const reportFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
+  const [user] = useAuthState(auth);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -136,7 +139,9 @@ export default function FixMyResumePage() {
   
   const handleSaveResume = async () => {
     if (!analysisResult?.improvedResumeText) return;
-    if (!session?.user?.id) {
+
+    const userId = session?.user?.id || user?.uid;
+    if (!userId) {
         toast({
             variant: 'destructive',
             title: 'Not signed in',
@@ -148,7 +153,7 @@ export default function FixMyResumePage() {
     setIsSaving(true);
     try {
         await saveResumeToDb({
-            userId: session.user.id,
+            userId: userId,
             resumeText: analysisResult.improvedResumeText,
             title: `Improved Resume - ${new Date().toLocaleDateString()}`
         });
@@ -316,5 +321,3 @@ export default function FixMyResumePage() {
     </div>
   )
 }
-
-    

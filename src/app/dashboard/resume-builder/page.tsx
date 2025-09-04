@@ -10,6 +10,7 @@ import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Downloa
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useSession } from "next-auth/react";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import ModernTemplate from "./templates/modern";
 import CreativeTemplate from "./templates/creative";
 import { useToast } from "@/hooks/use-toast";
 import { saveResumeToDb } from "@/ai/flows/save-resume-to-db";
-import { stringify } from "querystring";
+import { auth } from "@/lib/firebase";
 
 const personalDetailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required."),
@@ -99,6 +100,7 @@ export default function ResumeBuilderPage() {
   const resumePreviewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
+  const [user] = useAuthState(auth);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -277,7 +279,8 @@ export default function ResumeBuilderPage() {
         });
         return;
     }
-    if (!session?.user?.id) {
+    const userId = session?.user?.id || user?.uid;
+    if (!userId) {
         toast({
             variant: 'destructive',
             title: 'Not signed in',
@@ -308,7 +311,7 @@ export default function ResumeBuilderPage() {
         `;
 
         await saveResumeToDb({
-            userId: session.user.id,
+            userId: userId,
             resumeText: resumeText,
             title: `${generationResult.resume.personalDetails.fullName}'s Resume`
         });
@@ -681,5 +684,3 @@ export default function ResumeBuilderPage() {
     </div>
   );
 }
-
-    
