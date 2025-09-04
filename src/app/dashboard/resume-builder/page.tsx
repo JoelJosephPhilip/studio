@@ -6,10 +6,10 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette } from "lucide-react";
+import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette, Save } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,9 @@ import { cn } from "@/lib/utils";
 import ClassicTemplate from "./templates/classic";
 import ModernTemplate from "./templates/modern";
 import CreativeTemplate from "./templates/creative";
-import { GoogleDriveIcon } from "@/components/google-drive-icon";
 import { useToast } from "@/hooks/use-toast";
-import { saveToDrive } from "@/ai/flows/save-to-drive";
+import { saveResumeToDb } from "@/ai/flows/save-resume-to-db";
+import { stringify } from "querystring";
 
 const personalDetailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required."),
@@ -268,60 +268,61 @@ export default function ResumeBuilderPage() {
     pdf.save('resume.pdf');
   };
 
-  const handleSaveToDrive = async () => {
-    const element = resumePreviewRef.current;
-    if (!element) return;
-    if (!session || !session.user?.id) {
-        signIn('google', { callbackUrl: '/dashboard/resume-builder' });
+  const handleSaveResume = async () => {
+    if (!generationResult) {
+        toast({
+            variant: 'destructive',
+            title: 'No resume generated',
+            description: 'Please generate a resume before saving.'
+        });
+        return;
+    }
+    if (!session?.user?.id) {
+        toast({
+            variant: 'destructive',
+            title: 'Not signed in',
+            description: 'You must be signed in to save a resume.'
+        });
         return;
     }
 
     setIsSaving(true);
     try {
-        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL('image/png');
+        // Simple text conversion from the structured data for now.
+        // A more robust solution might serialize the JSON or the HTML content.
+        const resumeText = `
+        ${generationResult.resume.personalDetails.fullName}
+        ${generationResult.resume.personalDetails.email} | ${generationResult.resume.personalDetails.phoneNumber}
 
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pdfWidth = 210;
-        const pageHeight = 297;
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = imgWidth / imgHeight;
-        const pdfImgWidth = pdfWidth;
-        const pdfImgHeight = pdfImgWidth / ratio;
+        Summary:
+        ${generationResult.resume.professionalSummary}
 
-        let position = 0;
-        let heightLeft = pdfImgHeight;
+        Experience:
+        ${generationResult.resume.workExperience.map(e => `${e.jobTitle} at ${e.company}`).join('\n')}
 
-        pdf.addImage(imgData, 'PNG', 0, position, pdfImgWidth, pdfImgHeight);
-        heightLeft -= pageHeight;
+        Education:
+        ${generationResult.resume.education.map(e => `${e.degree} from ${e.institution}`).join('\n')}
 
-        while (heightLeft > 0) {
-            position = heightLeft - pdfImgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, pdfImgWidth, pdfImgHeight);
-            heightLeft -= pageHeight;
-        }
+        Skills:
+        ${generationResult.resume.skills.join(', ')}
+        `;
 
-        const pdfData = pdf.output('datauristring').split(',')[1];
-
-        await saveToDrive({
-            fileName: 'ai_generated_resume.pdf',
-            fileContent: pdfData,
-            mimeType: 'application/pdf',
+        await saveResumeToDb({
             userId: session.user.id,
+            resumeText: resumeText,
+            title: `${generationResult.resume.personalDetails.fullName}'s Resume`
         });
 
         toast({
             title: "Successfully Saved!",
-            description: "Your resume has been saved to Google Drive.",
+            description: "Your resume has been saved to your account.",
         });
     } catch (error) {
-        console.error("Error saving to drive: ", error);
+        console.error("Error saving resume: ", error);
         toast({
             variant: "destructive",
             title: "Save Failed",
-            description: "Could not save to Google Drive. Please try again.",
+            description: "Could not save resume. Please try again.",
         });
     } finally {
         setIsSaving(false);
@@ -343,18 +344,8 @@ export default function ResumeBuilderPage() {
             <div className="space-y-2">
                 <h3 className="font-headline text-xl">Personal Details</h3>
                 <p className="text-sm text-muted-foreground">
-                    You can start from scratch, or import a resume to get started.
+                    Start by filling in your personal information.
                 </p>
-                <div className="flex gap-2">
-                    <Button type="button" variant="outline" disabled>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload from Device
-                    </Button>
-                    <Button type="button" variant="outline" disabled>
-                        <GoogleDriveIcon className="mr-2 h-4 w-4" />
-                        Import from Google Drive
-                    </Button>
-                </div>
             </div>
             <FormField control={form.control} name="personalDetails.fullName" render={({ field }) => (
               <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
@@ -678,9 +669,9 @@ export default function ResumeBuilderPage() {
                             <Download className="mr-2 h-4 w-4" />
                             Download as PDF
                         </Button>
-                         <Button variant="outline" onClick={handleSaveToDrive} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleDriveIcon className="mr-2 h-4 w-4" />}
-                            {isSaving ? "Saving..." : "Save to Google Drive"}
+                         <Button variant="outline" onClick={handleSaveResume} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            {isSaving ? "Saving..." : "Save Resume"}
                         </Button>
                     </div>
                  </div>
@@ -690,3 +681,5 @@ export default function ResumeBuilderPage() {
     </div>
   );
 }
+
+    

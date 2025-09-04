@@ -6,10 +6,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand } from "lucide-react";
+import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand, Save } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import jsPDF from "jspdf";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 import {
   Card,
@@ -31,8 +31,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
-import { GoogleDriveIcon } from "@/components/google-drive-icon";
-import { saveToDrive } from "@/ai/flows/save-to-drive";
+import { saveResumeToDb } from "@/ai/flows/save-resume-to-db";
 
 // Setup for PDF.js worker - updated for Next.js compatibility
 if (typeof window !== 'undefined') {
@@ -135,43 +134,35 @@ export default function FixMyResumePage() {
     pdf.save("improved_resume.pdf");
   };
   
-  const handleSaveToDrive = async () => {
+  const handleSaveResume = async () => {
     if (!analysisResult?.improvedResumeText) return;
-    if (!session || !session.user?.id) {
-        signIn('google', { callbackUrl: '/dashboard/fix-my-resume' });
+    if (!session?.user?.id) {
+        toast({
+            variant: 'destructive',
+            title: 'Not signed in',
+            description: 'You must be signed in to save a resume.'
+        });
         return;
     }
     
     setIsSaving(true);
     try {
-        const pdf = new jsPDF({
-            orientation: 'p',
-            unit: 'mm',
-            format: 'a4'
-        });
-        const text = analysisResult.improvedResumeText;
-        const lines = pdf.splitTextToSize(text, 180); // A4 width in mm is 210, 180 gives margins
-        pdf.setFontSize(12);
-        pdf.text(lines, 15, 15); // x, y
-        const pdfData = pdf.output('datauristring').split(',')[1];
-
-        await saveToDrive({
-            fileName: 'improved_resume.pdf',
-            fileContent: pdfData,
-            mimeType: 'application/pdf',
+        await saveResumeToDb({
             userId: session.user.id,
+            resumeText: analysisResult.improvedResumeText,
+            title: `Improved Resume - ${new Date().toLocaleDateString()}`
         });
 
         toast({
             title: "Successfully Saved!",
-            description: "Your improved resume has been saved to Google Drive.",
+            description: "Your improved resume has been saved to your account.",
         });
     } catch (error) {
-        console.error("Error saving to drive: ", error);
+        console.error("Error saving resume: ", error);
         toast({
             variant: "destructive",
             title: "Save Failed",
-            description: "Could not save to Google Drive. Please try again.",
+            description: "Could not save resume. Please try again.",
         });
     } finally {
         setIsSaving(false);
@@ -206,15 +197,6 @@ export default function FixMyResumePage() {
                             <Upload className="mr-2 h-4 w-4" />
                             {resumeFileName || "Upload from Device"}
                           </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                            disabled={true}
-                          >
-                            <GoogleDriveIcon className="mr-2 h-4 w-4" />
-                            Import from Google Drive
-                          </Button>
                       </div>
                     </FormControl>
                      <Input
@@ -246,15 +228,6 @@ export default function FixMyResumePage() {
                           >
                             <Upload className="mr-2 h-4 w-4" />
                             {reportFileName || "Upload from Device"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                            disabled={true}
-                          >
-                            <GoogleDriveIcon className="mr-2 h-4 w-4" />
-                            Import from Google Drive
                           </Button>
                        </div>
                     </FormControl>
@@ -330,9 +303,9 @@ export default function FixMyResumePage() {
                         <Download className="mr-2 h-4 w-4" />
                         Download as PDF
                     </Button>
-                    <Button variant="outline" onClick={handleSaveToDrive} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleDriveIcon className="mr-2 h-4 w-4" />}
-                        {isSaving ? "Saving..." : "Save to Google Drive"}
+                    <Button variant="outline" onClick={handleSaveResume} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {isSaving ? "Saving..." : "Save Resume"}
                     </Button>
                  </div>
               </motion.div>
@@ -343,3 +316,5 @@ export default function FixMyResumePage() {
     </div>
   )
 }
+
+    

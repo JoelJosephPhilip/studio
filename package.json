@@ -1,3 +1,4 @@
+
 {
   "name": "nextn",
   "version": "0.1.0",
@@ -32,7 +33,6 @@
     "class-variance-authority": "^0.7.1",
     "firebase": "^10.12.2",
     "framer-motion": "^11.2.10",
-    "googleapis": "^140.0.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "lucide-react": "^0.525.0",
@@ -60,3 +60,5 @@
     "typescript": "^5"
   }
 }
+
+    
