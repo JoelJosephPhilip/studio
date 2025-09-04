@@ -38,7 +38,7 @@ const saveResumeToDbFlow = ai.defineFlow(
         outputSchema: SaveResumeToDbOutputSchema,
     },
     async (input) => {
-        // Initialize Firebase Admin SDK if not already initialized
+      try {
         if (!admin.apps.length) {
             admin.initializeApp({
                 credential: admin.credential.cert({
@@ -53,10 +53,12 @@ const saveResumeToDbFlow = ai.defineFlow(
         const db = admin.firestore();
         
         if (!input.userId) {
+            console.error('SaveResumeToDb Error: User not authenticated');
             throw new Error('User not authenticated');
         }
 
-        const resumesCollectionRef = db.collection('users').doc(input.userId).collection('resumes');
+        const userDocRef = db.collection('users').doc(input.userId);
+        const resumesCollectionRef = userDocRef.collection('resumes');
         
         const docRef = await resumesCollectionRef.add({
             title: input.title,
@@ -66,5 +68,9 @@ const saveResumeToDbFlow = ai.defineFlow(
         });
 
         return { resumeId: docRef.id };
+      } catch (error: any) {
+          console.error("Firestore save error in saveResumeToDbFlow:", error.message);
+          throw new Error(`Failed to save resume to database: ${error.message}`);
+      }
     }
 );
