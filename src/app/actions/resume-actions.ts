@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { collection, addDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; // Using the client-side initialized db
+import { db } from '@/lib/firebase';
 
 const SaveResumeToDbInputSchema = z.object({
   userId: z.string().describe("The user's unique ID."),
@@ -30,8 +30,6 @@ export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveRe
       throw new Error('User not authenticated');
     }
 
-    // This is now a server action using the client-side SDK.
-    // Firestore security rules will enforce that the user can only write to their own documents.
     const userDocRef = doc(db, 'users', input.userId);
     const resumesCollectionRef = collection(userDocRef, 'resumes');
     

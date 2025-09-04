@@ -27,7 +27,7 @@ import ClassicTemplate from "./templates/classic";
 import ModernTemplate from "./templates/modern";
 import CreativeTemplate from "./templates/creative";
 import { useToast } from "@/hooks/use-toast";
-import { saveResumeToDb } from "@/ai/flows/save-resume-to-db";
+import { saveResumeToDb } from "@/app/actions/resume-actions";
 import { auth } from "@/lib/firebase";
 
 const personalDetailsSchema = z.object({

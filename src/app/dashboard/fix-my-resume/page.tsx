@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
-import { saveResumeToDb } from "@/ai/flows/save-resume-to-db";
+import { saveResumeToDb } from "@/app/actions/resume-actions";
 import { auth } from "@/lib/firebase";
 
 // Setup for PDF.js worker - updated for Next.js compatibility
