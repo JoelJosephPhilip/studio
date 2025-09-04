@@ -32,7 +32,6 @@ import { useToast } from "@/hooks/use-toast";
 import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
 import { GoogleDriveIcon } from "@/components/google-drive-icon";
-import { Separator } from "@/components/ui/separator";
 import { saveToDrive } from "@/ai/flows/save-to-drive";
 
 // Setup for PDF.js worker - updated for Next.js compatibility
@@ -147,13 +146,13 @@ export default function FixMyResumePage() {
     try {
         const pdf = new jsPDF({
             orientation: 'p',
-            unit: 'pt',
+            unit: 'mm',
             format: 'a4'
         });
         const text = analysisResult.improvedResumeText;
-        const lines = pdf.splitTextToSize(text, 550);
+        const lines = pdf.splitTextToSize(text, 180); // A4 width in mm is 210, 180 gives margins
         pdf.setFontSize(12);
-        pdf.text(lines, 20, 20);
+        pdf.text(lines, 15, 15); // x, y
         const pdfData = pdf.output('datauristring').split(',')[1];
 
         await saveToDrive({

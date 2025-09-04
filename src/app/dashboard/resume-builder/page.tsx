@@ -6,7 +6,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette, FileText, FileWord, Image as ImageIcon } from "lucide-react";
+import { Loader2, Sparkles, Upload, Plus, Trash2, ArrowLeft, ArrowRight, Download, Eye, Palette } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { signIn, useSession } from "next-auth/react";
@@ -58,12 +58,6 @@ const educationSchema = z.array(z.object({
 }));
 
 const skillsSchema = z.string().min(5, "Please list some skills.");
-
-const finalTouchesSchema = z.object({
-  jobDescription: z.string().optional(),
-  photo: z.any().optional(),
-  template: z.enum(["classic", "modern", "creative"]).default("modern"),
-});
 
 const formSchema = z.object({
   personalDetails: personalDetailsSchema,
@@ -340,7 +334,6 @@ export default function ResumeBuilderPage() {
   if (!isMounted) {
     return null; // Or a loading spinner
   }
-
 
   const renderStepContent = () => {
     switch (currentStep) {
