@@ -1,15 +1,14 @@
-
 'use server';
 
 /**
- * @fileOverview Manages saving resumes to the Firestore database.
+ * @fileOverview Manages saving resumes to the Firestore database using server actions.
  *
  * - saveResumeToDb - Saves resume data to the user's document in Firestore.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import { collection, addDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // Using the client-side initialized db
 
 const SaveResumeToDbInputSchema = z.object({
   userId: z.string().describe("The user's unique ID."),
@@ -25,52 +24,27 @@ const SaveResumeToDbOutputSchema = z.object({
 
 export type SaveResumeToDbOutput = z.infer<typeof SaveResumeToDbOutputSchema>;
 
-
 export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveResumeToDbOutput> {
-    return saveResumeToDbFlow(input);
-}
-
-
-const saveResumeToDbFlow = ai.defineFlow(
-    {
-        name: 'saveResumeToDbFlow',
-        inputSchema: SaveResumeToDbInputSchema,
-        outputSchema: SaveResumeToDbOutputSchema,
-    },
-    async (input) => {
-      try {
-        if (!admin.apps.length) {
-            admin.initializeApp({
-                credential: admin.credential.cert({
-                    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-                }),
-                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-            });
-        }
-
-        const db = admin.firestore();
-        
-        if (!input.userId) {
-            console.error('SaveResumeToDb Error: User not authenticated');
-            throw new Error('User not authenticated');
-        }
-
-        const userDocRef = db.collection('users').doc(input.userId);
-        const resumesCollectionRef = userDocRef.collection('resumes');
-        
-        const docRef = await resumesCollectionRef.add({
-            title: input.title,
-            content: input.resumeText,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
-
-        return { resumeId: docRef.id };
-      } catch (error: any) {
-          console.error("Firestore save error in saveResumeToDbFlow:", error.message);
-          throw new Error(`Failed to save resume to database: ${error.message}`);
-      }
+  try {
+    if (!input.userId) {
+      throw new Error('User not authenticated');
     }
-);
+
+    // This is now a server action using the client-side SDK.
+    // Firestore security rules will enforce that the user can only write to their own documents.
+    const userDocRef = doc(db, 'users', input.userId);
+    const resumesCollectionRef = collection(userDocRef, 'resumes');
+    
+    const docRef = await addDoc(resumesCollectionRef, {
+        title: input.title,
+        content: input.resumeText,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    return { resumeId: docRef.id };
+  } catch (error: any) {
+      console.error("Firestore save error in saveResumeToDb:", error.message);
+      throw new Error(`Failed to save resume to database: ${error.message}`);
+  }
+}
