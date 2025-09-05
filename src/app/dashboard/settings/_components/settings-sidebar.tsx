@@ -22,20 +22,23 @@ const navItems = [
 export function SettingsSidebar({ activeSection, setActiveSection }: SettingsSidebarProps) {
     return (
         <nav className="flex flex-col gap-1">
-            {navItems.map(item => (
-                <Button
-                    key={item.id}
-                    variant="ghost"
-                    className={cn(
-                        "justify-start",
-                        activeSection === item.id && "bg-muted font-semibold"
-                    )}
-                    onClick={() => setActiveSection(item.id)}
-                >
-                    <item.icon className="mr-2 h-4 w-4" />
-                    {item.label}
-                </Button>
-            ))}
+            {navItems.map(item => {
+                const Icon = item.icon;
+                return (
+                    <Button
+                        key={item.id}
+                        variant="ghost"
+                        className={cn(
+                            "justify-start",
+                            activeSection === item.id && "bg-muted font-semibold"
+                        )}
+                        onClick={() => setActiveSection(item.id)}
+                    >
+                        <Icon className="mr-2 h-4 w-4" />
+                        {item.label}
+                    </Button>
+                );
+            })}
         </nav>
     );
 }
