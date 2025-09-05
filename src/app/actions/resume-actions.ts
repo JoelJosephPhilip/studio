@@ -73,7 +73,7 @@ function initializeFirebaseAdmin() {
             credential: admin.credential.cert({
                 projectId,
                 clientEmail,
-                privateKey: privateKey.replace(/\\n/g, '\n'),
+                privateKey,
             }),
         });
     } catch (error: any) {
