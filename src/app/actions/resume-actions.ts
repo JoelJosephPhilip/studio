@@ -3,6 +3,8 @@
 
 /**
  * @fileOverview Manages saving and retrieving resumes from the Firestore database using server actions.
+ * This file uses the user's email as the document ID in the 'users' collection to ensure consistency
+ * between different authentication providers (Firebase native vs. NextAuth with Google).
  */
 
 import { z } from 'zod';
@@ -12,19 +14,19 @@ import { db } from '@/lib/firebaseAdmin';
 // --- Zod Schemas for Input Validation ---
 
 const SaveResumeToDbInputSchema = z.object({
-  userId: z.string().describe("The user's unique ID."),
+  userEmail: z.string().email("A valid user email is required."),
   title: z.string().describe('The title of the resume.'),
   resumeText: z.string().describe('The full text content of the resume.'),
 });
 export type SaveResumeToDbInput = z.infer<typeof SaveResumeToDbInputSchema>;
 
 const GetResumesInputSchema = z.object({
-  userId: z.string().describe("The user's unique ID."),
+  userEmail: z.string().email("A valid user email is required."),
 });
 export type GetResumesInput = z.infer<typeof GetResumesInputSchema>;
 
 const DeleteResumeInputSchema = z.object({
-  userId: z.string().describe("The user's unique ID."),
+  userEmail: z.string().email("A valid user email is required."),
   resumeId: z.string().describe("The ID of the resume to delete."),
 });
 export type DeleteResumeInput = z.infer<typeof DeleteResumeInputSchema>;
@@ -48,25 +50,26 @@ export type Resume = {
 // --- Server Actions ---
 
 /**
- * Saves resume data to the user's document in Firestore.
+ * Saves resume data to the user's document in Firestore using their email as the key.
  */
 export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveResumeToDbOutput> {
   try {
     if (!db) {
         console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
-        // This allows the UI to proceed in a degraded state during development if creds are missing.
         return { resumeId: 'dev-mode-no-db' };
     }
       
-    if (!input.userId) {
+    const { userEmail, title, resumeText } = SaveResumeToDbInputSchema.parse(input);
+
+    if (!userEmail) {
       throw new Error('User not authenticated');
     }
 
-    const resumesCollectionRef = db.collection('users').doc(input.userId).collection('resumes');
+    const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
     
     const docRef = await resumesCollectionRef.add({
-        title: input.title,
-        content: input.resumeText,
+        title: title,
+        content: resumeText,
         createdAt: new Date(),
         updatedAt: new Date(),
     });
@@ -79,7 +82,7 @@ export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveRe
 }
 
 /**
- * Fetches all resumes for a given user.
+ * Fetches all resumes for a given user using their email.
  */
 export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
   try {
@@ -88,14 +91,14 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
         return [];
     }
       
-    const { userId } = GetResumesInputSchema.parse(input);
+    const { userEmail } = GetResumesInputSchema.parse(input);
 
-    if (!userId) {
-      console.log("getResumes: No user ID provided.");
+    if (!userEmail) {
+      console.log("getResumes: No user email provided.");
       return [];
     }
 
-    const resumesCollectionRef = db.collection('users').doc(userId).collection('resumes');
+    const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
     const snapshot = await resumesCollectionRef.orderBy('updatedAt', 'desc').get();
 
     if (snapshot.empty) {
@@ -121,7 +124,7 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
 }
 
 /**
- * Deletes a specific resume for a given user.
+ * Deletes a specific resume for a given user using their email.
  */
 export async function deleteResume(input: DeleteResumeInput): Promise<{ success: boolean }> {
   try {
@@ -130,13 +133,13 @@ export async function deleteResume(input: DeleteResumeInput): Promise<{ success:
         return { success: true };
     }
       
-    const { userId, resumeId } = DeleteResumeInputSchema.parse(input);
+    const { userEmail, resumeId } = DeleteResumeInputSchema.parse(input);
 
-    if (!userId || !resumeId) {
-        throw new Error("User ID and Resume ID are required.");
+    if (!userEmail || !resumeId) {
+        throw new Error("User email and Resume ID are required.");
     }
 
-    const resumeDocRef = db.collection('users').doc(userId).collection('resumes').doc(resumeId);
+    const resumeDocRef = db.collection('users').doc(userEmail).collection('resumes').doc(resumeId);
     await resumeDocRef.delete();
 
     return { success: true };

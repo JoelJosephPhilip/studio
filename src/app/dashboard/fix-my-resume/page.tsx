@@ -140,8 +140,8 @@ export default function FixMyResumePage() {
   const handleSaveResume = async () => {
     if (!analysisResult?.improvedResumeText) return;
 
-    const userId = session?.user?.id || user?.uid;
-    if (!userId) {
+    const userEmail = session?.user?.email || user?.email;
+    if (!userEmail) {
         toast({
             variant: 'destructive',
             title: 'Not signed in',
@@ -153,7 +153,7 @@ export default function FixMyResumePage() {
     setIsSaving(true);
     try {
         await saveResumeToDb({
-            userId: userId,
+            userEmail: userEmail,
             resumeText: analysisResult.improvedResumeText,
             title: `Improved Resume - ${new Date().toLocaleDateString()}`
         });

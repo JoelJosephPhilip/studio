@@ -279,8 +279,8 @@ export default function ResumeBuilderPage() {
         });
         return;
     }
-    const userId = session?.user?.id || user?.uid;
-    if (!userId) {
+    const userEmail = session?.user?.email || user?.email;
+    if (!userEmail) {
         toast({
             variant: 'destructive',
             title: 'Not signed in',
@@ -311,7 +311,7 @@ export default function ResumeBuilderPage() {
         `;
 
         await saveResumeToDb({
-            userId: userId,
+            userEmail: userEmail,
             resumeText: resumeText,
             title: `${generationResult.resume.personalDetails.fullName}'s Resume`
         });

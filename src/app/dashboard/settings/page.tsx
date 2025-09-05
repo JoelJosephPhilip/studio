@@ -28,7 +28,7 @@ function ResumeManager() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { toast } = useToast();
 
-  const userId = session?.user?.id || firebaseUser?.uid;
+  const userEmail = session?.user?.email || firebaseUser?.email;
 
   useEffect(() => {
     const isUserLoading = firebaseLoading || sessionStatus === 'loading';
@@ -37,12 +37,14 @@ function ResumeManager() {
       return;
     }
 
-    if (userId) {
+    if (userEmail) {
       const fetchAndSetResumes = async () => {
         setIsLoading(true);
         try {
-          const fetchedResumes = await getResumes({ userId });
+          console.log(`Fetching resumes for email: ${userEmail}`);
+          const fetchedResumes = await getResumes({ userEmail });
           setResumes(fetchedResumes);
+          console.log("Fetched resumes:", fetchedResumes);
         } catch (error) {
            console.error("Failed to fetch resumes:", error);
            toast({
@@ -60,7 +62,7 @@ function ResumeManager() {
       setIsLoading(false);
       setResumes([]);
     }
-  }, [userId, firebaseLoading, sessionStatus, toast]);
+  }, [userEmail, firebaseLoading, sessionStatus, toast]);
 
   const downloadResumeAsPdf = (resume: Resume) => {
     const pdf = new jsPDF();
@@ -75,10 +77,10 @@ function ResumeManager() {
   };
 
   const confirmDelete = async () => {
-    if (!selectedResumeId || !userId) return;
+    if (!selectedResumeId || !userEmail) return;
     setIsDeleting(true);
     try {
-      await deleteResume({ userId: userId, resumeId: selectedResumeId });
+      await deleteResume({ userEmail: userEmail, resumeId: selectedResumeId });
       setResumes(resumes.filter(r => r.id !== selectedResumeId));
       toast({
         title: "Resume Deleted",
@@ -102,7 +104,7 @@ function ResumeManager() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!userId) {
+    if (!userEmail) {
        return (
         <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
           <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
