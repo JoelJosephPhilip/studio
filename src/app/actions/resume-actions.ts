@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
 import type { Timestamp } from 'firebase-admin/firestore';
+import { db } from '@/lib/firebaseAdmin';
 
 // --- Zod Schemas for Input Validation ---
 
@@ -45,52 +45,18 @@ export type Resume = {
 };
 
 
-// --- Helper function for Firebase Admin SDK Initialization ---
-
-function initializeFirebaseAdmin() {
-    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-
-    if (!serviceAccountJson) {
-        console.warn(`
-        Firebase Admin SDK is not configured. 
-        Database operations (save, get, delete) will be skipped.
-        Please set the FIREBASE_SERVICE_ACCOUNT_JSON environment variable.
-        `);
-        return null;
-    }
-
-    if (admin.apps.length) {
-        return admin.firestore();
-    }
-
-    try {
-        const serviceAccount = JSON.parse(serviceAccountJson);
-        
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-        });
-    } catch (error: any) {
-        console.error('Firebase admin initialization error:', error.message);
-        throw new Error('Firebase admin initialization failed.');
-    }
-
-    return admin.firestore();
-}
-
-
 // --- Server Actions ---
 
 /**
  * Saves resume data to the user's document in Firestore.
  */
 export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveResumeToDbOutput> {
-  const db = initializeFirebaseAdmin();
-  if (!db) {
-    // Return a mock success response so the UI doesn't block.
-    return { resumeId: 'dev-mode-placeholder-id' };
-  }
-    
   try {
+    if (!db) {
+        console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
+        return { resumeId: 'dev-mode-no-db' };
+    }
+      
     if (!input.userId) {
       throw new Error('User not authenticated');
     }
@@ -115,12 +81,12 @@ export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveRe
  * Fetches all resumes for a given user.
  */
 export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
-  const db = initializeFirebaseAdmin();
-  if (!db) {
-    return [];
-  }
-
   try {
+     if (!db) {
+        console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
+        return [];
+    }
+      
     const { userId } = input;
 
     const resumesCollectionRef = db.collection('users').doc(userId).collection('resumes');
@@ -152,12 +118,12 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
  * Deletes a specific resume for a given user.
  */
 export async function deleteResume(input: DeleteResumeInput): Promise<{ success: boolean }> {
-  const db = initializeFirebaseAdmin();
-  if (!db) {
-    return { success: true };
-  }
-
   try {
+     if (!db) {
+        console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
+        return { success: true };
+    }
+      
     const { userId, resumeId } = input;
 
     const resumeDocRef = db.collection('users').doc(userId).collection('resumes').doc(resumeId);
