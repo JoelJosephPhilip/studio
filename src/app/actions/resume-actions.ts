@@ -54,6 +54,7 @@ export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveRe
   try {
     if (!db) {
         console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
+        // This allows the UI to proceed in a degraded state during development if creds are missing.
         return { resumeId: 'dev-mode-no-db' };
     }
       
@@ -87,7 +88,12 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
         return [];
     }
       
-    const { userId } = input;
+    const { userId } = GetResumesInputSchema.parse(input);
+
+    if (!userId) {
+      console.log("getResumes: No user ID provided.");
+      return [];
+    }
 
     const resumesCollectionRef = db.collection('users').doc(userId).collection('resumes');
     const snapshot = await resumesCollectionRef.orderBy('updatedAt', 'desc').get();
@@ -124,7 +130,11 @@ export async function deleteResume(input: DeleteResumeInput): Promise<{ success:
         return { success: true };
     }
       
-    const { userId, resumeId } = input;
+    const { userId, resumeId } = DeleteResumeInputSchema.parse(input);
+
+    if (!userId || !resumeId) {
+        throw new Error("User ID and Resume ID are required.");
+    }
 
     const resumeDocRef = db.collection('users').doc(userId).collection('resumes').doc(resumeId);
     await resumeDocRef.delete();

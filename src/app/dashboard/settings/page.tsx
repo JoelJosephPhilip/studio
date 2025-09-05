@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc, DocumentData } from 'firebase/firestore';
+import { useSession } from 'next-auth/react';
+import { auth } from '@/lib/firebase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, FileText, Download, Trash2, MoreHorizontal, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -15,18 +15,11 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { deleteResume, getResumes } from '@/app/actions/resume-actions';
-
-export type Resume = {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
+import { deleteResume, getResumes, type Resume } from '@/app/actions/resume-actions';
 
 function ResumeManager() {
-  const [user, loadingUser] = useAuthState(auth);
+  const [firebaseUser, loadingFirebase] = useAuthState(auth);
+  const { data: session, status: sessionStatus } = useSession();
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -34,19 +27,38 @@ function ResumeManager() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { toast } = useToast();
 
+  const userId = session?.user?.id || firebaseUser?.uid;
+
   useEffect(() => {
-    if (user) {
+    const isUserLoading = loadingFirebase || sessionStatus === 'loading';
+    if (isUserLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    if (userId) {
       const fetchAndSetResumes = async () => {
         setIsLoading(true);
-        const fetchedResumes = await getResumes({ userId: user.uid });
-        setResumes(fetchedResumes);
-        setIsLoading(false);
+        try {
+          const fetchedResumes = await getResumes({ userId: userId });
+          setResumes(fetchedResumes);
+        } catch (error) {
+           console.error("Failed to fetch resumes:", error);
+           toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not fetch your saved resumes.",
+           });
+        } finally {
+          setIsLoading(false);
+        }
       };
       fetchAndSetResumes();
-    } else if (!loadingUser) {
+    } else {
       setIsLoading(false);
+      setResumes([]);
     }
-  }, [user, loadingUser]);
+  }, [userId, loadingFirebase, sessionStatus, toast]);
 
   const downloadResumeAsPdf = (resume: Resume) => {
     const pdf = new jsPDF();
@@ -61,10 +73,10 @@ function ResumeManager() {
   };
 
   const confirmDelete = async () => {
-    if (!selectedResumeId || !user) return;
+    if (!selectedResumeId || !userId) return;
     setIsDeleting(true);
     try {
-      await deleteResume({ userId: user.uid, resumeId: selectedResumeId });
+      await deleteResume({ userId: userId, resumeId: selectedResumeId });
       setResumes(resumes.filter(r => r.id !== selectedResumeId));
       toast({
         title: "Resume Deleted",
@@ -87,6 +99,15 @@ function ResumeManager() {
   const renderContent = () => {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+    if (!userId) {
+       return (
+        <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
+          <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="font-bold text-xl">Please Sign In</h3>
+          <p className="text-muted-foreground">You need to be signed in to manage your resumes.</p>
+        </div>
+      );
     }
     if (resumes.length === 0) {
       return (
@@ -127,7 +148,7 @@ function ResumeManager() {
                     <Download className="mr-2 h-4 w-4" />
                     <span>Download</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleDeleteClick(resume.id)} className="text-destructive">
+                  <DropdownMenuItem onClick={() => handleDeleteClick(resume.id)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" />
                     <span>Delete</span>
                   </DropdownMenuItem>
@@ -158,7 +179,7 @@ function ResumeManager() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} disabled={isDeleting}>
+              <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
                 {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Delete
               </AlertDialogAction>
