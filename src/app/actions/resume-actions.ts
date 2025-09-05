@@ -48,22 +48,13 @@ export type Resume = {
 // --- Helper function for Firebase Admin SDK Initialization ---
 
 function initializeFirebaseAdmin() {
-    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    // The private key is read from the environment variables.
-    // In many environments (like Vercel), you need to format the key by replacing
-    // literal newlines `\n` with `\\n` in the environment variable value.
-    // The code then replaces `\\n` back to `\n` before parsing.
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
-    if (!projectId || !clientEmail || !privateKey) {
+    if (!serviceAccountJson) {
         console.warn(`
         Firebase Admin SDK is not configured. 
         Database operations (save, get, delete) will be skipped.
-        Please set the following environment variables:
-        - NEXT_PUBLIC_FIREBASE_PROJECT_ID
-        - FIREBASE_CLIENT_EMAIL
-        - FIREBASE_PRIVATE_KEY
+        Please set the FIREBASE_SERVICE_ACCOUNT_JSON environment variable.
         `);
         return null;
     }
@@ -73,12 +64,10 @@ function initializeFirebaseAdmin() {
     }
 
     try {
+        const serviceAccount = JSON.parse(serviceAccountJson);
+        
         admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId,
-                clientEmail,
-                privateKey,
-            }),
+            credential: admin.credential.cert(serviceAccount),
         });
     } catch (error: any) {
         console.error('Firebase admin initialization error:', error.message);
