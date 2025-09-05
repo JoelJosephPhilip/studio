@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebaseAdmin';
+import * as admin from 'firebase-admin';
 
 // --- Zod Schemas for Input Validation ---
 
@@ -70,8 +71,8 @@ export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<SaveRe
     const docRef = await resumesCollectionRef.add({
         title: title,
         content: resumeText,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     return { resumeId: docRef.id };
@@ -112,9 +113,13 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
         id: doc.id,
         title: data.title,
         content: data.content,
-        // Convert Firestore Timestamps to JS Date objects
-        createdAt: (data.createdAt as Timestamp).toDate(),
-        updatedAt: (data.updatedAt as Timestamp).toDate(),
+        // Handle both JS Date (from older saves) and Firestore Timestamps
+        createdAt: data.createdAt instanceof Date
+          ? data.createdAt
+          : (data.createdAt as Timestamp)?.toDate?.() || new Date(),
+        updatedAt: data.updatedAt instanceof Date
+          ? data.updatedAt
+          : (data.updatedAt as Timestamp)?.toDate?.() || new Date(),
       };
     });
   } catch (error: any) {
