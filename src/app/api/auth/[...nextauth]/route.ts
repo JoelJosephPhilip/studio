@@ -22,12 +22,16 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (session?.user && token?.sub) {
-        session.user.id = token.sub;
+        // Use email as the consistent ID in the session user object
+        session.user.id = token.email as string;
       }
       return session;
     },
     async signIn({ user, account, profile }) {
-      if (account && user.id) {
+      // Use email as the canonical user ID for Firestore documents
+      const userEmail = user.email;
+
+      if (account && userEmail) {
          try {
             const privateData: any = {
                 accessToken: account.access_token,
@@ -37,15 +41,17 @@ export const authOptions: NextAuthOptions = {
                 privateData.refreshToken = account.refresh_token
             }
             
-            await setDoc(doc(db, "users", user.id, "private", "googleAuth"), privateData, { merge: true });
+            // Note: The document ID for 'private' data can still be the provider ID if needed,
+            // but the main user document must be keyed by email.
+            await setDoc(doc(db, "users", userEmail, "private", "googleAuth"), privateData, { merge: true });
 
-            // Also save public user data if it's their first time.
-            const userDocRef = doc(db, "users", user.id);
+            // Save public user data using the email as the document ID.
+            const userDocRef = doc(db, "users", userEmail);
             const userDoc = await getDoc(userDocRef);
 
             if (!userDoc.exists()) {
               await setDoc(userDocRef, {
-                uid: user.id,
+                uid: user.id, // Keep the original provider UID for reference if needed
                 email: user.email,
                 displayName: user.name,
                 photoURL: user.image,

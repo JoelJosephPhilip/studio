@@ -36,15 +36,15 @@ function ResumeManager() {
       setIsLoading(true);
       return;
     }
+    
+    console.log("Resolved userEmail for settings:", userEmail);
 
     if (userEmail) {
       const fetchAndSetResumes = async () => {
         setIsLoading(true);
         try {
-          console.log(`Fetching resumes for email: ${userEmail}`);
           const fetchedResumes = await getResumes({ userEmail });
           setResumes(fetchedResumes);
-          console.log("Fetched resumes:", fetchedResumes);
         } catch (error) {
            console.error("Failed to fetch resumes:", error);
            toast({

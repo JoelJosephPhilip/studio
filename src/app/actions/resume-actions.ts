@@ -98,16 +98,18 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
       console.log("getResumes: No user email provided.");
       return [];
     }
-
+    
+    console.log("Fetching resumes from path:", `users/${userEmail}/resumes`);
     const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
     const snapshot = await resumesCollectionRef.orderBy('updatedAt', 'desc').get();
 
     if (snapshot.empty) {
+      console.log("No resumes found for this user.");
       return [];
     }
     
     // Explicitly type the resume data to match the Resume type
-    return snapshot.docs.map(doc => {
+    const resumes = snapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -122,6 +124,8 @@ export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
           : (data.updatedAt as Timestamp)?.toDate?.() || new Date(),
       };
     });
+    console.log("Raw resumes data from Firestore:", resumes);
+    return resumes;
   } catch (error: any) {
     console.error("Firestore get error in getResumes:", error.message);
     throw new Error(`Failed to get resumes from database: ${error.message}`);
