@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { useSession } from 'next-auth/react';
 import { auth } from '@/lib/firebase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, FileText, Download, Trash2, MoreHorizontal, AlertTriangle } from 'lucide-react';
@@ -18,8 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteResume, getResumes, type Resume } from '@/app/actions/resume-actions';
 
 function ResumeManager() {
-  const [firebaseUser, loadingFirebase] = useAuthState(auth);
-  const { data: session, status: sessionStatus } = useSession();
+  const [user, loading] = useAuthState(auth);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -27,20 +25,17 @@ function ResumeManager() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { toast } = useToast();
 
-  const userId = session?.user?.id || firebaseUser?.uid;
-
   useEffect(() => {
-    const isUserLoading = loadingFirebase || sessionStatus === 'loading';
-    if (isUserLoading) {
+    if (loading) {
       setIsLoading(true);
       return;
     }
 
-    if (userId) {
+    if (user) {
       const fetchAndSetResumes = async () => {
         setIsLoading(true);
         try {
-          const fetchedResumes = await getResumes({ userId: userId });
+          const fetchedResumes = await getResumes({ userId: user.uid });
           setResumes(fetchedResumes);
         } catch (error) {
            console.error("Failed to fetch resumes:", error);
@@ -58,7 +53,7 @@ function ResumeManager() {
       setIsLoading(false);
       setResumes([]);
     }
-  }, [userId, loadingFirebase, sessionStatus, toast]);
+  }, [user, loading, toast]);
 
   const downloadResumeAsPdf = (resume: Resume) => {
     const pdf = new jsPDF();
@@ -73,10 +68,10 @@ function ResumeManager() {
   };
 
   const confirmDelete = async () => {
-    if (!selectedResumeId || !userId) return;
+    if (!selectedResumeId || !user) return;
     setIsDeleting(true);
     try {
-      await deleteResume({ userId: userId, resumeId: selectedResumeId });
+      await deleteResume({ userId: user.uid, resumeId: selectedResumeId });
       setResumes(resumes.filter(r => r.id !== selectedResumeId));
       toast({
         title: "Resume Deleted",
@@ -100,7 +95,7 @@ function ResumeManager() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!userId) {
+    if (!user) {
        return (
         <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
           <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
