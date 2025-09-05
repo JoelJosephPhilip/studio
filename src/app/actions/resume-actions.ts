@@ -50,13 +50,17 @@ export type Resume = {
 function initializeFirebaseAdmin() {
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    // The private key is read from the environment variables.
+    // In many environments (like Vercel), you need to format the key by replacing
+    // literal newlines `\n` with `\\n` in the environment variable value.
+    // The code then replaces `\\n` back to `\n` before parsing.
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
     if (!projectId || !clientEmail || !privateKey) {
         console.warn(`
         Firebase Admin SDK is not configured. 
         Database operations (save, get, delete) will be skipped.
-        Please set the following environment variables in your .env.local file:
+        Please set the following environment variables:
         - NEXT_PUBLIC_FIREBASE_PROJECT_ID
         - FIREBASE_CLIENT_EMAIL
         - FIREBASE_PRIVATE_KEY
