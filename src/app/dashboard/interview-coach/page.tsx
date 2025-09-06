@@ -284,24 +284,42 @@ export default function InterviewCoachPage() {
   };
 
   const handleGenerateTopicMcqs = async () => {
-    if (!prepPack || !mcqTopic) return;
+    if (!mcqTopic) return;
     
     setIsGeneratingTopicMcqs(true);
+    if (!prepPack) { // If no prep pack exists, create one
+        setPrepPack({
+            behavioral: [],
+            technical: [],
+            mcqs: [],
+            feedback: { strengths: [], areasForImprovement: [] }
+        });
+    }
+
     try {
-        const existingQuestions = prepPack.mcqs.map(q => q.question);
+        const existingQuestions = prepPack?.mcqs.map(q => q.question) || [];
         const result = await generateMcqsForTopic({
             topic: mcqTopic,
             existingQuestions,
         });
 
         setPrepPack(prev => {
-            if (!prev) return null;
-            return {
-                ...prev,
-                mcqs: [...prev.mcqs, ...result.mcqs],
-            };
+             const newMcqs = [...(prev?.mcqs || []), ...result.mcqs];
+             if (prev) {
+                return { ...prev, mcqs: newMcqs };
+             }
+             return {
+                behavioral: [],
+                technical: [],
+                mcqs: newMcqs,
+                feedback: { strengths: [], areasForImprovement: [] }
+             }
         });
         setMcqTopic(''); // Clear input after generation
+        toast({
+            title: 'MCQs Generated!',
+            description: `New questions for ${mcqTopic} have been added to the report.`
+        });
 
     } catch (error: any) {
         console.error(`Error generating MCQs for topic ${mcqTopic}:`, error);
@@ -476,6 +494,28 @@ export default function InterviewCoachPage() {
               </Button>
             </form>
           </Form>
+
+          <Separator className="my-6" />
+
+          <div className="space-y-3">
+            <Label htmlFor="mcq-topic" className="font-semibold">Generate MCQs for a specific topic</Label>
+            <div className="flex gap-2">
+                <Input 
+                    id="mcq-topic"
+                    placeholder="e.g., React, Kubernetes, Python"
+                    value={mcqTopic}
+                    onChange={(e) => setMcqTopic(e.target.value)}
+                    disabled={isGeneratingTopicMcqs}
+                />
+                <Button onClick={handleGenerateTopicMcqs} disabled={isGeneratingTopicMcqs || !mcqTopic}>
+                    {isGeneratingTopicMcqs ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+                Generate questions for a topic. They will be added to your prep pack below.
+            </p>
+          </div>
+
         </CardContent>
       </Card>
 
@@ -506,31 +546,33 @@ export default function InterviewCoachPage() {
             {!isLoading && prepPack && (
               <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
                 
-                <div className="space-y-2">
-                    <h3 className="font-semibold text-lg">Feedback Summary</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div className="p-4 bg-green-100/50 dark:bg-green-900/20 rounded-lg">
-                            <h4 className="font-semibold flex items-center gap-2 mb-2 text-green-700 dark:text-green-400"><ThumbsUp/>Strengths to Highlight</h4>
-                            <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                                {prepPack.feedback.strengths.map((item, i) => <li key={`s-${i}`}>{item}</li>)}
-                            </ul>
-                        </div>
-                        <div className="p-4 bg-amber-100/50 dark:bg-amber-900/20 rounded-lg">
-                            <h4 className="font-semibold flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400"><ThumbsDown/>Areas to Prepare</h4>
-                            <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                                {prepPack.feedback.areasForImprovement.map((item, i) => <li key={`a-${i}`}>{item}</li>)}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <Separator />
+                {prepPack.feedback.strengths.length > 0 && (
+                  <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">Feedback Summary</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div className="p-4 bg-green-100/50 dark:bg-green-900/20 rounded-lg">
+                              <h4 className="font-semibold flex items-center gap-2 mb-2 text-green-700 dark:text-green-400"><ThumbsUp/>Strengths to Highlight</h4>
+                              <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                                  {prepPack.feedback.strengths.map((item, i) => <li key={`s-${i}`}>{item}</li>)}
+                              </ul>
+                          </div>
+                          <div className="p-4 bg-amber-100/50 dark:bg-amber-900/20 rounded-lg">
+                              <h4 className="font-semibold flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400"><ThumbsDown/>Areas to Prepare</h4>
+                              <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                                  {prepPack.feedback.areasForImprovement.map((item, i) => <li key={`a-${i}`}>{item}</li>)}
+                              </ul>
+                          </div>
+                      </div>
+                  </div>
+                )}
+                
+                {(prepPack.behavioral.length > 0 || prepPack.technical.length > 0 || prepPack.mcqs.length > 0) && <Separator />}
                 
                 <Tabs defaultValue="behavioral" className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
-                        <TabsTrigger value="technical">Technical</TabsTrigger>
-                        <TabsTrigger value="mcq">Multiple Choice</TabsTrigger>
+                        <TabsTrigger value="behavioral" disabled={prepPack.behavioral.length === 0}>Behavioral</TabsTrigger>
+                        <TabsTrigger value="technical" disabled={prepPack.technical.length === 0}>Technical</TabsTrigger>
+                        <TabsTrigger value="mcq" disabled={prepPack.mcqs.length === 0}>Multiple Choice</TabsTrigger>
                     </TabsList>
                     <TabsContent value="behavioral" className="pt-4 space-y-4">
                       <Accordion type="single" collapsible className="w-full">
@@ -561,29 +603,21 @@ export default function InterviewCoachPage() {
                       </Button>
                     </TabsContent>
                     <TabsContent value="mcq" className="pt-4 space-y-4">
-                        <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                           <Label htmlFor="mcq-topic" className="font-semibold">Generate MCQs for a specific topic</Label>
-                           <div className="flex gap-2">
-                                <Input 
-                                    id="mcq-topic"
-                                    placeholder="e.g., React, Kubernetes, Python"
-                                    value={mcqTopic}
-                                    onChange={(e) => setMcqTopic(e.target.value)}
-                                    disabled={isGeneratingTopicMcqs}
-                                />
-                                <Button onClick={handleGenerateTopicMcqs} disabled={isGeneratingTopicMcqs || !mcqTopic}>
-                                    {isGeneratingTopicMcqs ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                                </Button>
-                           </div>
-                        </div>
-
+                       {prepPack.mcqs.length === 0 && (
+                         <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-muted-foreground/30 rounded-lg min-h-[200px]">
+                            <h3 className="font-bold text-lg">No MCQs Generated</h3>
+                            <p className="text-muted-foreground text-sm">Use the form above to generate MCQs for a specific topic.</p>
+                         </div>
+                       )}
                        {prepPack.mcqs.map((mcq, index) => (
                           <McqItem key={index} mcq={mcq} index={index} />
                        ))}
-                       <Button variant="outline" size="sm" disabled={loadingMore.mcq} onClick={() => handleGenerateMore('mcq')}>
-                        {loadingMore.mcq ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        Generate More
-                      </Button>
+                       {prepPack.mcqs.length > 0 && (
+                          <Button variant="outline" size="sm" disabled={loadingMore.mcq} onClick={() => handleGenerateMore('mcq')}>
+                            {loadingMore.mcq ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Generate More
+                          </Button>
+                       )}
                     </TabsContent>
                 </Tabs>
               </motion.div>
