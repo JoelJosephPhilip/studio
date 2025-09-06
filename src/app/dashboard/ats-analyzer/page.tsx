@@ -2,10 +2,11 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, Download, Upload, Lightbulb, FileText } from "lucide-react";
+import { Loader2, Sparkles, Download, Upload, Lightbulb, FileText, Wand2 } from "lucide-react";
 
 import {
   Card,
@@ -36,6 +37,16 @@ import { analyzeResumeAts, AnalyzeResumeAtsOutput } from "@/ai/flows/ats-resume-
 import { analyzeResumeAtsPdf } from "@/ai/flows/ats-resume-analyzer-pdf";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import * as pdfjsLib from "pdfjs-dist";
+
+// Setup for PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+}
+
 
 const formSchema = z.object({
   resumeText: z.string(),
@@ -49,10 +60,12 @@ type FormSchemaType = z.infer<typeof formSchema>;
 
 export default function AtsAnalyzerPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResumeAtsOutput | null>(null);
+  const [currentResumeText, setCurrentResumeText] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -60,6 +73,18 @@ export default function AtsAnalyzerPage() {
       resumeText: "",
     },
   });
+  
+  const extractTextFromPdf = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => ('str' in item ? item.str : '')).join(' ');
+    }
+    return text;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,9 +109,11 @@ export default function AtsAnalyzerPage() {
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
     setAnalysisResult(null);
+    setCurrentResumeText("");
 
     try {
       let result;
+      let resumeTextForAnalysis = "";
       const file = values.resumeFile as File | undefined;
 
       if (file) {
@@ -99,14 +126,20 @@ export default function AtsAnalyzerPage() {
             setIsLoading(false);
             return;
          }
-        const pdfDataUri = await fileToDataUri(file);
+        const [pdfDataUri, extractedText] = await Promise.all([
+            fileToDataUri(file),
+            extractTextFromPdf(file)
+        ]);
+        resumeTextForAnalysis = extractedText;
         result = await analyzeResumeAtsPdf({ pdfDataUri });
       } else {
+        resumeTextForAnalysis = values.resumeText;
         result = await analyzeResumeAts({
           resumeText: values.resumeText,
         });
       }
       setAnalysisResult(result);
+      setCurrentResumeText(resumeTextForAnalysis);
     } catch (error) {
       console.error("Error analyzing resume:", error);
       toast({
@@ -118,33 +151,42 @@ export default function AtsAnalyzerPage() {
       setIsLoading(false);
     }
   }
+  
+  const getFullReportText = (result: AnalyzeResumeAtsOutput) => {
+    return `
+      ATS Resume Analysis Report
+      Overall Score: ${result.atsReadinessScore}/100
+      Keyword Optimization: ${result.keywordOptimization.score}/100 - ${result.keywordOptimization.feedback}
+      Clarity & Conciseness: ${result.clarityAndConciseness.score}/100 - ${result.clarityAndConciseness.feedback}
+      Formatting & Structure: ${result.formattingAndStructure.score}/100 - ${result.formattingAndStructure.feedback}
+      Action Verbs: ${result.actionVerbs.score}/100 - ${result.actionVerbs.feedback}
+      Suggestions for Improvement: ${result.suggestions}
+    `;
+  };
+
+  const handleFixMyResume = () => {
+    if (!analysisResult || !currentResumeText) return;
+
+    try {
+        const reportText = getFullReportText(analysisResult);
+        sessionStorage.setItem('fixMyResumeData', JSON.stringify({
+            resumeText: currentResumeText,
+            atsReportText: reportText,
+        }));
+        router.push('/dashboard/fix-my-resume');
+    } catch (error) {
+        console.error("Error saving to sessionStorage:", error);
+        toast({
+            variant: "destructive",
+            title: "Navigation Failed",
+            description: "Could not prepare data for the resume fixer. Please try again."
+        });
+    }
+  };
 
   const downloadReport = () => {
     if (!analysisResult) return;
-    const report = `
-ATS Resume Analysis Report
-==========================
-
-Overall Score: ${analysisResult.atsReadinessScore}/100
-
-Detailed Breakdown:
--------------------
-Keyword Optimization: ${analysisResult.keywordOptimization.score}/100
-- ${analysisResult.keywordOptimization.feedback}
-
-Clarity & Conciseness: ${analysisResult.clarityAndConciseness.score}/100
-- ${analysisResult.clarityAndConciseness.feedback}
-
-Formatting & Structure: ${analysisResult.formattingAndStructure.score}/100
-- ${analysisResult.formattingAndStructure.feedback}
-
-Action Verbs: ${analysisResult.actionVerbs.score}/100
-- ${analysisResult.actionVerbs.feedback}
-
-Suggestions for Improvement:
-----------------------------
-${analysisResult.suggestions}
-    `;
+    const report = getFullReportText(analysisResult);
     const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -259,7 +301,7 @@ ${analysisResult.suggestions}
                 <div className="relative w-32 h-32 mx-auto">
                     <Progress value={analysisResult.atsReadinessScore} className="absolute inset-0 w-full h-full rounded-full" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-bold text-3xl text-primary-foreground">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
+                        <span className="font-bold text-3xl text-primary">{analysisResult.atsReadinessScore}<span className="text-base">/100</span></span>
                     </div>
                 </div>
               </div>
@@ -291,11 +333,18 @@ ${analysisResult.suggestions}
                 <h4 className="font-semibold text-lg flex items-center gap-2"><Lightbulb className="text-yellow-500" />Suggestions for Improvement</h4>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-accent/20 p-4 rounded-md">{analysisResult.suggestions}</p>
               </div>
+              
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={downloadReport}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report
+                </Button>
+                 <Button onClick={handleFixMyResume} variant="secondary">
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Fix My Resume with AI
+                </Button>
+              </div>
 
-              <Button onClick={downloadReport}>
-                <Download className="mr-2 h-4 w-4" />
-                Download Report
-              </Button>
             </div>
           )}
         </CardContent>
@@ -303,3 +352,5 @@ ${analysisResult.suggestions}
     </div>
   )
 }
+
+    

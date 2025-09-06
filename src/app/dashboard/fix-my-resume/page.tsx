@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -44,8 +44,13 @@ if (typeof window !== 'undefined') {
 }
 
 const formSchema = z.object({
-  resumeFile: z.any().refine(file => file instanceof File, "Resume PDF is required."),
-  atsReportFile: z.any().refine(file => file instanceof File, "ATS Report file is required."),
+  resumeFile: z.any().optional(),
+  atsReportFile: z.any().optional(),
+  resumeText: z.string().optional(),
+  atsReportText: z.string().optional(),
+}).refine(data => (data.resumeFile && data.atsReportFile) || (data.resumeText && data.atsReportText), {
+    message: "Please provide both a resume and an ATS report.",
+    path: ["resumeFile"],
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -84,38 +89,69 @@ export default function FixMyResumePage() {
     }
   };
 
-  async function onSubmit(values: FormSchemaType) {
+  async function runFixMyResume(resumeText: string, atsReportText: string) {
     setIsLoading(true);
     setAnalysisResult(null);
-
     try {
-      const resumeFile = values.resumeFile as File;
-      const atsReportFile = values.atsReportFile as File;
-
-      if (!resumeFile || !atsReportFile) {
-        toast({ variant: "destructive", title: "Missing files", description: "Please upload both files." });
+        const result = await fixMyResume({ resumeText, atsReportText });
+        setAnalysisResult(result);
+        toast({ title: "Resume Improved!", description: "Your new resume is ready." });
+    } catch (error) {
+        console.error("Error fixing resume:", error);
+        toast({
+            variant: "destructive",
+            title: "Improvement Failed",
+            description: "Something went wrong. Please check the console and try again.",
+        });
+    } finally {
         setIsLoading(false);
-        return;
+    }
+  }
+  
+  // Effect to check sessionStorage on page load
+  useEffect(() => {
+    try {
+      const storedData = sessionStorage.getItem('fixMyResumeData');
+      if (storedData) {
+        const { resumeText, atsReportText } = JSON.parse(storedData);
+        if (resumeText && atsReportText) {
+            form.setValue('resumeText', resumeText);
+            form.setValue('atsReportText', atsReportText);
+            setResumeFileName("From ATS Analyzer");
+            setReportFileName("From ATS Analyzer");
+            runFixMyResume(resumeText, atsReportText);
+        }
+        // Clean up sessionStorage after use
+        sessionStorage.removeItem('fixMyResumeData');
       }
-      
-      const [resumeText, atsReportText] = await Promise.all([
-        extractTextFromFile(resumeFile),
-        extractTextFromFile(atsReportFile),
-      ]);
+    } catch (error) {
+      console.error("Could not process data from sessionStorage", error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
-      const result = await fixMyResume({ resumeText, atsReportText });
-      setAnalysisResult(result);
-      toast({ title: "Resume Improved!", description: "Your new resume is ready." });
+  async function onSubmit(values: FormSchemaType) {
+    let resumeText = values.resumeText || "";
+    let atsReportText = values.atsReportText || "";
+    
+    try {
+        if (values.resumeFile) {
+            resumeText = await extractTextFromFile(values.resumeFile as File);
+        }
+        if (values.atsReportFile) {
+            atsReportText = await extractTextFromFile(values.atsReportFile as File);
+        }
+        
+        if (!resumeText || !atsReportText) {
+            toast({ variant: "destructive", title: "Missing text", description: "Could not extract text from one or both files." });
+            return;
+        }
+
+        await runFixMyResume(resumeText, atsReportText);
 
     } catch (error) {
-      console.error("Error fixing resume:", error);
-      toast({
-        variant: "destructive",
-        title: "Improvement Failed",
-        description: "Something went wrong. Please check the console and try again.",
-      });
-    } finally {
-      setIsLoading(false);
+        console.error("Error processing files:", error);
+        toast({ variant: "destructive", title: "File Error", description: "Could not read the uploaded files." });
     }
   }
   
@@ -123,6 +159,9 @@ export default function FixMyResumePage() {
     const file = e.target.files?.[0];
     if (file) {
       form.setValue(fieldName, file);
+      // Clear text fields when a file is selected
+      if (fieldName === 'resumeFile') form.setValue('resumeText', undefined);
+      if (fieldName === 'atsReportFile') form.setValue('atsReportText', undefined);
       setFileName(file.name);
       form.clearErrors(fieldName);
     }
@@ -321,3 +360,5 @@ export default function FixMyResumePage() {
     </div>
   )
 }
+
+    
