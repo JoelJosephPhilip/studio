@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Sparkles, MessageSquare, ThumbsUp, ThumbsDown, FileText, Upload, CheckCircle } from 'lucide-react';
+import { Loader2, Sparkles, MessageSquare, ThumbsUp, ThumbsDown, FileText, Upload, RefreshCw } from 'lucide-react';
 import * as pdfjsLib from "pdfjs-dist";
 
 import {
@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { getResumes, type Resume } from '@/app/actions/resume-actions';
 import { generateInterviewPrepPack, type AiInterviewCoachOutput } from '@/ai/flows/ai-interview-coach';
+import { generateMoreQuestions, GenerateMoreQuestionsOutput } from '@/ai/flows/generate-more-questions';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -109,10 +110,18 @@ function McqItem({ mcq, index }: { mcq: AiInterviewCoachOutput['mcqs'][0], index
   );
 }
 
+type LoadingMoreState = {
+    behavioral: boolean;
+    technical: boolean;
+    mcq: boolean;
+};
+
+
 export default function InterviewCoachPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [prepPack, setPrepPack] = useState<AiInterviewCoachOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState<LoadingMoreState>({ behavioral: false, technical: false, mcq: false });
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const resumeFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -149,6 +158,23 @@ export default function InterviewCoachPage() {
     }
   }, [userEmail, toast]);
 
+  const getResumeTextFromState = async (): Promise<string> => {
+    const values = form.getValues();
+    if (values.resumeText && values.resumeText.length > 50) {
+        return values.resumeText;
+    }
+    if (values.resumeFile) {
+        const file = values.resumeFile as File;
+        return await extractTextFromFile(file);
+    }
+    if (values.resumeId) {
+        const selectedResume = resumes.find(r => r.id === values.resumeId);
+        if (!selectedResume) throw new Error("Selected resume not found.");
+        return selectedResume.content;
+    }
+    throw new Error("No resume source selected.");
+  };
+
   const extractTextFromFile = async (file: File): Promise<string> => {
     if (file.type === 'application/pdf') {
       const arrayBuffer = await file.arrayBuffer();
@@ -183,22 +209,7 @@ export default function InterviewCoachPage() {
     setPrepPack(null);
 
     try {
-        let resumeText = '';
-        if (values.resumeText && values.resumeText.length > 50) {
-            resumeText = values.resumeText;
-        } else if (values.resumeFile) {
-            const file = values.resumeFile as File;
-            resumeText = await extractTextFromFile(file);
-        } else if (values.resumeId) {
-            const selectedResume = resumes.find(r => r.id === values.resumeId);
-            if (!selectedResume) {
-                toast({ variant: 'destructive', title: 'Resume not found' });
-                setIsLoading(false);
-                return;
-            }
-            resumeText = selectedResume.content;
-        }
-
+      const resumeText = await getResumeTextFromState();
       const result = await generateInterviewPrepPack({
         resumeText: resumeText,
         jobTitle: values.jobTitle,
@@ -216,6 +227,57 @@ export default function InterviewCoachPage() {
       setIsLoading(false);
     }
   }
+  
+  const handleGenerateMore = async (category: keyof LoadingMoreState) => {
+    if (!prepPack) return;
+
+    setLoadingMore(prev => ({ ...prev, [category]: true }));
+
+    try {
+        const resumeText = await getResumeTextFromState();
+        const { jobTitle, jobDescription } = form.getValues();
+        
+        let existingQuestions: string[] = [];
+        if (category === 'behavioral' || category === 'technical') {
+            existingQuestions = prepPack[category].map(q => q.question);
+        } else if (category === 'mcq') {
+            existingQuestions = prepPack.mcqs.map(q => q.question);
+        }
+
+        const result = await generateMoreQuestions({
+            resumeText,
+            jobTitle,
+            jobDescription,
+            category,
+            existingQuestions,
+        });
+
+        setPrepPack(prev => {
+            if (!prev) return null;
+            const newPack = { ...prev };
+            if (result.behavioral) {
+                newPack.behavioral = [...newPack.behavioral, ...result.behavioral];
+            }
+            if (result.technical) {
+                newPack.technical = [...newPack.technical, ...result.technical];
+            }
+            if (result.mcqs) {
+                newPack.mcqs = [...newPack.mcqs, ...result.mcqs];
+            }
+            return newPack;
+        });
+
+    } catch (error: any) {
+        console.error(`Error generating more ${category} questions:`, error);
+        toast({
+            variant: 'destructive',
+            title: 'Generation Failed',
+            description: `Could not generate more ${category} questions. Please try again.`,
+        });
+    } finally {
+        setLoadingMore(prev => ({ ...prev, [category]: false }));
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -434,7 +496,7 @@ export default function InterviewCoachPage() {
                         <TabsTrigger value="technical">Technical</TabsTrigger>
                         <TabsTrigger value="mcq">Multiple Choice</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="behavioral" className="pt-4">
+                    <TabsContent value="behavioral" className="pt-4 space-y-4">
                       <Accordion type="single" collapsible className="w-full">
                         {prepPack.behavioral.map((item, index) => (
                           <AccordionItem value={`b-${index}`} key={`b-${index}`}>
@@ -443,8 +505,12 @@ export default function InterviewCoachPage() {
                           </AccordionItem>
                         ))}
                       </Accordion>
+                      <Button variant="outline" size="sm" disabled={loadingMore.behavioral} onClick={() => handleGenerateMore('behavioral')}>
+                        {loadingMore.behavioral ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Generate More
+                      </Button>
                     </TabsContent>
-                    <TabsContent value="technical" className="pt-4">
+                    <TabsContent value="technical" className="pt-4 space-y-4">
                       <Accordion type="single" collapsible className="w-full">
                         {prepPack.technical.map((item, index) => (
                           <AccordionItem value={`t-${index}`} key={`t-${index}`}>
@@ -453,11 +519,19 @@ export default function InterviewCoachPage() {
                           </AccordionItem>
                         ))}
                       </Accordion>
+                       <Button variant="outline" size="sm" disabled={loadingMore.technical} onClick={() => handleGenerateMore('technical')}>
+                        {loadingMore.technical ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Generate More
+                      </Button>
                     </TabsContent>
                     <TabsContent value="mcq" className="pt-4 space-y-4">
                        {prepPack.mcqs.map((mcq, index) => (
                           <McqItem key={index} mcq={mcq} index={index} />
                        ))}
+                       <Button variant="outline" size="sm" disabled={loadingMore.mcq} onClick={() => handleGenerateMore('mcq')}>
+                        {loadingMore.mcq ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Generate More
+                      </Button>
                     </TabsContent>
                 </Tabs>
               </motion.div>
