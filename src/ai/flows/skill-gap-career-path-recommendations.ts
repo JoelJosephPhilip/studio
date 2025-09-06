@@ -46,7 +46,7 @@ Your tasks are as follows:
     - An estimated timeline in years to reach that role.
     - A list of required skills needed to achieve that role.
     - A list of valuable certifications or courses.
-    - A list of suggested learning resources (e.g., Coursera, LinkedIn Learning, Udemy, or free alternatives).
+    - A list of suggested learning resources (e.g., Coursera, LinkedIn Learning, Udemy, or free alternatives). For each resource, you must provide a name and a valid, clickable URL.
 
 Please provide the output as a single, structured JSON object that strictly follows the provided output schema.
 `,

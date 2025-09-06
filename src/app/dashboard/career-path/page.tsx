@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Sparkles, Upload, FileText, CheckCircle, XCircle, AlertCircle, TrendingUp, BookOpen } from 'lucide-react';
+import { Loader2, Sparkles, Upload, FileText, CheckCircle, XCircle, AlertCircle, TrendingUp, BookOpen, ExternalLink } from 'lucide-react';
 import * as pdfjsLib from "pdfjs-dist";
 
 import {
@@ -397,8 +397,15 @@ export default function CareerPathPage() {
                                    </div>
                                    <div>
                                        <h4 className="font-semibold flex items-center gap-2"><BookOpen/> Learning Resources:</h4>
-                                       <ul className="list-disc list-inside text-muted-foreground">
-                                           {step.resources.map((res, i) => <li key={i}>{res}</li>)}
+                                       <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                                           {step.resources.map((res, i) => (
+                                              <li key={i}>
+                                                  <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                                      {res.name}
+                                                      <ExternalLink className="h-3 w-3" />
+                                                  </a>
+                                              </li>
+                                           ))}
                                        </ul>
                                    </div>
                                </CardContent>

@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview This file defines the Zod schemas and TypeScript types for the Skill Gap & Career Path feature.
  */
@@ -22,12 +21,17 @@ const SkillGapAnalysisSchema = z.object({
   weak: z.array(z.string()).describe("A list of skills present in the resume but could be better highlighted or are not well-supported."),
 });
 
+const LearningResourceSchema = z.object({
+  name: z.string().describe("The name or title of the learning resource."),
+  url: z.string().url().describe("A valid, clickable URL for the resource."),
+});
+
 const CareerPathStepSchema = z.object({
   role: z.string().describe("The name of the role at this career stage."),
   timeline: z.string().describe("The expected timeline to reach this role (e.g., '2-4 years')."),
   requiredSkills: z.array(z.string()).describe("A list of skills required for this role."),
   certifications: z.array(z.string()).describe("A list of recommended certifications or courses."),
-  resources: z.array(z.string()).describe("A list of suggested learning resources."),
+  resources: z.array(LearningResourceSchema).describe("A list of suggested learning resources, each with a name and a URL."),
 });
 
 export const SkillGapCareerPathOutputSchema = z.object({
