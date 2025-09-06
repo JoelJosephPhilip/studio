@@ -48,6 +48,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
+import { generateMcqsForTopic } from '@/ai/flows/generate-mcqs-for-topic';
 
 
 // Setup for PDF.js worker
@@ -123,6 +124,8 @@ export default function InterviewCoachPage() {
   const [prepPack, setPrepPack] = useState<AiInterviewCoachOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState<LoadingMoreState>({ behavioral: false, technical: false, mcq: false });
+  const [mcqTopic, setMcqTopic] = useState('');
+  const [isGeneratingTopicMcqs, setIsGeneratingTopicMcqs] = useState(false);
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const resumeFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -277,6 +280,38 @@ export default function InterviewCoachPage() {
         });
     } finally {
         setLoadingMore(prev => ({ ...prev, [category]: false }));
+    }
+  };
+
+  const handleGenerateTopicMcqs = async () => {
+    if (!prepPack || !mcqTopic) return;
+    
+    setIsGeneratingTopicMcqs(true);
+    try {
+        const existingQuestions = prepPack.mcqs.map(q => q.question);
+        const result = await generateMcqsForTopic({
+            topic: mcqTopic,
+            existingQuestions,
+        });
+
+        setPrepPack(prev => {
+            if (!prev) return null;
+            return {
+                ...prev,
+                mcqs: [...prev.mcqs, ...result.mcqs],
+            };
+        });
+        setMcqTopic(''); // Clear input after generation
+
+    } catch (error: any) {
+        console.error(`Error generating MCQs for topic ${mcqTopic}:`, error);
+        toast({
+            variant: 'destructive',
+            title: 'MCQ Generation Failed',
+            description: `Could not generate questions for ${mcqTopic}. Please try again.`,
+        });
+    } finally {
+        setIsGeneratingTopicMcqs(false);
     }
   };
 
@@ -526,6 +561,22 @@ export default function InterviewCoachPage() {
                       </Button>
                     </TabsContent>
                     <TabsContent value="mcq" className="pt-4 space-y-4">
+                        <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                           <Label htmlFor="mcq-topic" className="font-semibold">Generate MCQs for a specific topic</Label>
+                           <div className="flex gap-2">
+                                <Input 
+                                    id="mcq-topic"
+                                    placeholder="e.g., React, Kubernetes, Python"
+                                    value={mcqTopic}
+                                    onChange={(e) => setMcqTopic(e.target.value)}
+                                    disabled={isGeneratingTopicMcqs}
+                                />
+                                <Button onClick={handleGenerateTopicMcqs} disabled={isGeneratingTopicMcqs || !mcqTopic}>
+                                    {isGeneratingTopicMcqs ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                </Button>
+                           </div>
+                        </div>
+
                        {prepPack.mcqs.map((mcq, index) => (
                           <McqItem key={index} mcq={mcq} index={index} />
                        ))}

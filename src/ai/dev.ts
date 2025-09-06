@@ -12,5 +12,6 @@ import '@/ai/flows/jd-resume-similarity-matching.ts';
 import '@/ai/flows/skill-gap-career-path-recommendations.ts';
 import '@/ai/flows/fix-my-resume.ts';
 import '@/ai/flows/generate-more-questions.ts';
+import '@/ai/flows/generate-mcqs-for-topic.ts';
 
     

@@ -56,3 +56,17 @@ export const GenerateMoreQuestionsOutputSchema = z.object({
     mcqs: z.array(McqQuestionSchema).optional(),
 });
 export type GenerateMoreQuestionsOutput = z.infer<typeof GenerateMoreQuestionsOutputSchema>;
+
+
+// --- Schemas for the "Generate MCQs for Topic" feature ---
+
+export const GenerateMcqsForTopicInputSchema = z.object({
+  topic: z.string().describe('The specific technology topic for which to generate MCQs.'),
+  existingQuestions: z.array(z.string()).describe('A list of questions already generated to avoid duplicates.'),
+});
+export type GenerateMcqsForTopicInput = z.infer<typeof GenerateMcqsForTopicInputSchema>;
+
+export const GenerateMcqsForTopicOutputSchema = z.object({
+    mcqs: z.array(McqQuestionSchema),
+});
+export type GenerateMcqsForTopicOutput = z.infer<typeof GenerateMcqsForTopicOutputSchema>;
