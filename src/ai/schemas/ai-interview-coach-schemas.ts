@@ -5,6 +5,8 @@
 
 import { z } from 'zod';
 
+// --- Schemas for the main Interview Prep Pack ---
+
 export const AiInterviewCoachInputSchema = z.object({
   resumeText: z.string().describe("The text content of the user's resume."),
   jobTitle: z.string().describe('The job title the user is interviewing for.'),
@@ -35,3 +37,22 @@ export const AiInterviewCoachOutputSchema = z.object({
   feedback: FeedbackSchema.describe("A summary of strengths and areas for improvement."),
 });
 export type AiInterviewCoachOutput = z.infer<typeof AiInterviewCoachOutputSchema>;
+
+
+// --- Schemas for the "Generate More Questions" feature ---
+
+export const GenerateMoreQuestionsInputSchema = z.object({
+  resumeText: z.string().describe("The text content of the user's resume."),
+  jobTitle: z.string().describe('The job title the user is interviewing for.'),
+  jobDescription: z.string().optional().describe('The job description for the role.'),
+  category: z.enum(['behavioral', 'technical', 'mcq']).describe('The category of questions to generate.'),
+  existingQuestions: z.array(z.string()).describe('A list of questions already generated to avoid duplicates.'),
+});
+export type GenerateMoreQuestionsInput = z.infer<typeof GenerateMoreQuestionsInputSchema>;
+
+export const GenerateMoreQuestionsOutputSchema = z.object({
+    behavioral: z.array(QuestionAnswerPairSchema).optional(),
+    technical: z.array(QuestionAnswerPairSchema).optional(),
+    mcqs: z.array(McqQuestionSchema).optional(),
+});
+export type GenerateMoreQuestionsOutput = z.infer<typeof GenerateMoreQuestionsOutputSchema>;
