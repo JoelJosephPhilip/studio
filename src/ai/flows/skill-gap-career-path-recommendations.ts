@@ -1,30 +1,19 @@
+
 'use server';
 /**
  * @fileOverview Provides skill gap analysis and career path recommendations based on a resume.
  *
  * - skillGapCareerPathRecommendations - A function that handles the skill gap analysis and career path recommendation process.
- * - SkillGapCareerPathInput - The input type for the skillGapCareerPathRecommendations function.
- * - SkillGapCareerPathOutput - The return type for the skillGapCareerPathRecommendations function.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {
+    SkillGapCareerPathInputSchema,
+    SkillGapCareerPathOutputSchema,
+    type SkillGapCareerPathInput,
+    type SkillGapCareerPathOutput
+} from '@/ai/schemas/skill-gap-schemas';
 
-const SkillGapCareerPathInputSchema = z.object({
-  resumeText: z
-    .string()
-    .describe('The text content of the user\'s resume.'),
-  careerGoals: z.string().optional().describe('The user\'s desired career goals or job titles.'),
-  jobDescription: z.string().optional().describe('A job description to compare the resume against.'),
-});
-export type SkillGapCareerPathInput = z.infer<typeof SkillGapCareerPathInputSchema>;
-
-const SkillGapCareerPathOutputSchema = z.object({
-  skillGaps: z.array(z.string()).describe('A list of skills the user is missing to achieve their career goals or match the job description.'),
-  careerPathRecommendations: z.array(z.string()).describe('A list of potential career paths based on the user\'s resume and career goals.'),
-  additionalRecommendations: z.string().describe('Additional recommendations on how the user can improve their resume or gain new skills.'),
-});
-export type SkillGapCareerPathOutput = z.infer<typeof SkillGapCareerPathOutputSchema>;
 
 export async function skillGapCareerPathRecommendations(input: SkillGapCareerPathInput): Promise<SkillGapCareerPathOutput> {
   return skillGapCareerPathFlow(input);
@@ -34,18 +23,32 @@ const prompt = ai.definePrompt({
   name: 'skillGapCareerPathPrompt',
   input: {schema: SkillGapCareerPathInputSchema},
   output: {schema: SkillGapCareerPathOutputSchema},
-  prompt: `You are a career advisor. Analyze the provided resume and provide recommendations for skills to learn and potential career paths.
+  prompt: `You are an expert career advisor and skill gap analyst.
 
-Resume:
+Here is the user’s current resume:
+---
 {{{resumeText}}}
+---
 
-{% if careerGoals %}Career Goals: {{{careerGoals}}}\n{% endif %}
-{% if jobDescription %}Job Description: {{{jobDescription}}}\n{% endif %}
+Here is the target job description:
+---
+{{{jobDescriptionText}}}
+---
 
-Based on this information, identify skill gaps and suggest relevant career paths.
-Also suggest additional recommendations on how the user can improve their resume or gain new skills.
+Your tasks are as follows:
+1.  Extract all relevant skills (both technical and soft skills) from both the resume and the job description.
+2.  Identify which skills from the job description the user already possesses based on their resume. These are the skills they 'have'.
+3.  Identify which skills from the job description are completely missing from the user's resume.
+4.  Identify which skills are present in the resume but could be considered 'weak'. A skill is weak if it's mentioned infrequently, lacks specific examples, or is not framed with impact.
+5.  Generate a detailed, multi-step career path roadmap for the user’s field, showing a typical progression of 3-4 levels (e.g., Junior -> Mid-level -> Senior -> Lead).
+6.  For each level in the career path, provide the following details:
+    - The typical role name.
+    - An estimated timeline in years to reach that role.
+    - A list of required skills needed to achieve that role.
+    - A list of valuable certifications or courses.
+    - A list of suggested learning resources (e.g., Coursera, LinkedIn Learning, Udemy, or free alternatives).
 
-Provide the output in JSON format. Skill gaps and career path recommendations should be a list of strings.
+Please provide the output as a single, structured JSON object that strictly follows the provided output schema.
 `,
 });
 

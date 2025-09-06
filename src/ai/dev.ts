@@ -14,7 +14,9 @@ import '@/ai/flows/fix-my-resume.ts';
 import '@/ai/flows/generate-more-questions.ts';
 import '@/ai/flows/generate-mcqs-for-topic.ts';
 import '@/ai/flows/search-jobs.ts';
+import '@/ai/schemas/skill-gap-schemas.ts';
 
     
 
     
+
