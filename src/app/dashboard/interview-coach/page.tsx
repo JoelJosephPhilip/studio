@@ -1,14 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Sparkles, MessageSquare, ThumbsUp, ThumbsDown, FileText } from 'lucide-react';
+import { Loader2, Sparkles, MessageSquare, ThumbsUp, ThumbsDown, FileText, Upload } from 'lucide-react';
+import * as pdfjsLib from "pdfjs-dist";
 
 import {
   Card,
@@ -40,11 +41,26 @@ import { auth } from '@/lib/firebase';
 import { getResumes, type Resume } from '@/app/actions/resume-actions';
 import { generateInterviewPrepPack, type AiInterviewCoachOutput } from '@/ai/flows/ai-interview-coach';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+
+// Setup for PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+}
 
 const formSchema = z.object({
-  resumeId: z.string().min(1, 'Please select a resume.'),
+  resumeId: z.string().optional(),
+  resumeFile: z.any().optional(),
   jobTitle: z.string().min(2, 'Please enter a job title.'),
+}).refine(data => data.resumeId || data.resumeFile, {
+    message: "Please select or upload a resume.",
+    path: ["resumeId"],
 });
+
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
@@ -52,6 +68,8 @@ export default function InterviewCoachPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [prepPack, setPrepPack] = useState<AiInterviewCoachOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
   const [user] = useAuthState(auth);
@@ -84,20 +102,55 @@ export default function InterviewCoachPage() {
     }
   }, [userEmail, toast]);
 
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    if (file.type === 'application/pdf') {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      let text = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => ('str' in item ? item.str : '')).join(' ');
+      }
+      return text;
+    } else if (file.type === 'text/plain') {
+      return file.text();
+    } else {
+      throw new Error("Unsupported file type. Please upload a PDF or TXT file.");
+    }
+  };
+  
+  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue('resumeFile', file);
+      form.setValue('resumeId', undefined); // Clear selected resume
+      setResumeFileName(file.name);
+      form.clearErrors('resumeId');
+    }
+  };
+
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
     setPrepPack(null);
 
-    const selectedResume = resumes.find(r => r.id === values.resumeId);
-    if (!selectedResume) {
-      toast({ variant: 'destructive', title: 'Resume not found' });
-      setIsLoading(false);
-      return;
-    }
-
     try {
+        let resumeText = '';
+        if (values.resumeFile) {
+            const file = values.resumeFile as File;
+            resumeText = await extractTextFromFile(file);
+        } else if (values.resumeId) {
+            const selectedResume = resumes.find(r => r.id === values.resumeId);
+            if (!selectedResume) {
+                toast({ variant: 'destructive', title: 'Resume not found' });
+                setIsLoading(false);
+                return;
+            }
+            resumeText = selectedResume.content;
+        }
+
       const result = await generateInterviewPrepPack({
-        resumeText: selectedResume.content,
+        resumeText: resumeText,
         jobTitle: values.jobTitle,
       });
       setPrepPack(result);
@@ -125,28 +178,79 @@ export default function InterviewCoachPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="resumeId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Select Your Resume</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={resumes.length === 0}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={resumes.length > 0 ? 'Select a saved resume' : 'No resumes found'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {resumes.map(resume => (
-                          <SelectItem key={resume.id} value={resume.id}>{resume.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Tabs defaultValue="select" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="select" onClick={() => {
+                        form.setValue('resumeFile', undefined);
+                        setResumeFileName(null);
+                    }}>Select Saved</TabsTrigger>
+                    <TabsTrigger value="upload" onClick={() => {
+                        form.setValue('resumeId', undefined);
+                    }}>Upload New</TabsTrigger>
+                </TabsList>
+                <TabsContent value="select" className="pt-4">
+                  <FormField
+                    control={form.control}
+                    name="resumeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Select Your Resume</FormLabel>
+                        <Select onValueChange={(value) => {
+                            field.onChange(value);
+                            form.setValue('resumeFile', undefined);
+                            setResumeFileName(null);
+                            form.clearErrors('resumeId');
+                        }} defaultValue={field.value} disabled={resumes.length === 0}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={resumes.length > 0 ? 'Select a saved resume' : 'No resumes found'} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {resumes.map(resume => (
+                              <SelectItem key={resume.id} value={resume.id}>{resume.title}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+                <TabsContent value="upload" className="pt-4">
+                   <FormField
+                    control={form.control}
+                    name="resumeFile"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Upload Resume (PDF or TXT)</FormLabel>
+                        <FormControl>
+                          <div className="space-y-2">
+                             <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-start text-left font-normal"
+                                disabled={isLoading}
+                                onClick={() => resumeFileInputRef.current?.click()}
+                              >
+                                <Upload className="mr-2 h-4 w-4" />
+                                {resumeFileName || "Upload from Device"}
+                              </Button>
+                          </div>
+                        </FormControl>
+                         <Input
+                            type="file"
+                            className="hidden"
+                            ref={resumeFileInputRef}
+                            onChange={handleResumeFileChange}
+                            accept=".pdf,.txt"
+                          />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+              </Tabs>
 
               <FormField
                 control={form.control}
@@ -252,3 +356,5 @@ export default function InterviewCoachPage() {
     </div>
   );
 }
+
+    
