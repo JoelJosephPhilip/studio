@@ -210,9 +210,9 @@ export default function JdMatcherPage() {
       yPos += 5; // Extra space after a section
     };
     
-    addSection("Suggestions for Improvement", analysisResult.suggestions);
-    addSection("Your Strengths", analysisResult.strengths);
-    addSection("Keyword Gaps", analysisResult.keywordGaps);
+    addSection("Summary", [analysisResult.summary]);
+    addSection("Your Strengths (Matches)", analysisResult.matches);
+    addSection("Keyword Gaps", analysisResult.gaps);
 
     doc.save("jd_match_report.pdf");
   };
@@ -403,25 +403,23 @@ export default function JdMatcherPage() {
                     </div>
                 </div>
 
-                <Tabs defaultValue="suggestions" className="w-full">
+                <Tabs defaultValue="summary" className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="suggestions"><Lightbulb className="mr-2" />Suggestions</TabsTrigger>
-                        <TabsTrigger value="strengths"><ThumbsUp className="mr-2" />Strengths</TabsTrigger>
-                        <TabsTrigger value="gaps"><XCircle className="mr-2" />Keyword Gaps</TabsTrigger>
+                        <TabsTrigger value="summary"><Lightbulb className="mr-2" />Summary</TabsTrigger>
+                        <TabsTrigger value="matches"><ThumbsUp className="mr-2" />Matches</TabsTrigger>
+                        <TabsTrigger value="gaps"><XCircle className="mr-2" />Gaps</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="suggestions" className="mt-4 p-4 bg-accent/10 rounded-md max-h-80 overflow-y-auto">
-                        <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                            {analysisResult.suggestions.map((item, i) => <li key={i}>{item}</li>)}
-                        </ul>
+                    <TabsContent value="summary" className="mt-4 p-4 bg-accent/10 rounded-md max-h-80 overflow-y-auto">
+                        <p className="text-sm text-muted-foreground">{analysisResult.summary}</p>
                     </TabsContent>
-                    <TabsContent value="strengths" className="mt-4 p-4 bg-accent/10 rounded-md max-h-80 overflow-y-auto">
+                    <TabsContent value="matches" className="mt-4 p-4 bg-accent/10 rounded-md max-h-80 overflow-y-auto">
                          <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                            {analysisResult.strengths.map((item, i) => <li key={i}>{item}</li>)}
+                            {analysisResult.matches.map((item, i) => <li key={i}>{item}</li>)}
                         </ul>
                     </TabsContent>
                     <TabsContent value="gaps" className="mt-4 p-4 bg-accent/10 rounded-md max-h-80 overflow-y-auto">
                          <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                            {analysisResult.keywordGaps.map((item, i) => <li key={i}>{item}</li>)}
+                            {analysisResult.gaps.map((item, i) => <li key={i}>{item}</li>)}
                         </ul>
                     </TabsContent>
                 </Tabs>
