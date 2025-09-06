@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Sparkles, MessageSquare, ThumbsUp, ThumbsDown, FileText, Upload } from 'lucide-react';
+import { Loader2, Sparkles, MessageSquare, ThumbsUp, ThumbsDown, FileText, Upload, CheckCircle } from 'lucide-react';
 import * as pdfjsLib from "pdfjs-dist";
 
 import {
@@ -43,6 +43,8 @@ import { generateInterviewPrepPack, type AiInterviewCoachOutput } from '@/ai/flo
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 
 // Setup for PDF.js worker
@@ -65,6 +67,45 @@ const formSchema = z.object({
 
 
 type FormSchemaType = z.infer<typeof formSchema>;
+
+function McqItem({ mcq, index }: { mcq: AiInterviewCoachOutput['mcqs'][0], index: number }) {
+  const [selectedValue, setSelectedValue] = useState<string | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const isCorrect = selectedValue === mcq.correctAnswer;
+
+  return (
+    <div className="text-sm p-4 border rounded-lg space-y-3">
+        <p className="font-semibold">{index + 1}. {mcq.question}</p>
+        <RadioGroup onValueChange={setSelectedValue} disabled={showAnswer}>
+            {mcq.options.map((option, i) => (
+                <div key={i} className="flex items-center space-x-2">
+                    <RadioGroupItem value={option} id={`q${index}-o${i}`} />
+                    <Label htmlFor={`q${index}-o${i}`} className={cn(
+                        showAnswer && option === mcq.correctAnswer && "text-green-600 font-bold",
+                        showAnswer && selectedValue === option && option !== mcq.correctAnswer && "text-red-600 line-through"
+                    )}>
+                        {option}
+                    </Label>
+                </div>
+            ))}
+        </RadioGroup>
+        <div className="flex items-center gap-4">
+            <Button size="sm" variant="outline" onClick={() => setShowAnswer(true)} disabled={!selectedValue}>
+                Check Answer
+            </Button>
+            {showAnswer && (
+                <div className="flex items-center gap-1 font-semibold">
+                    {isCorrect ? (
+                        <span className="text-green-600">Correct!</span>
+                    ) : (
+                        <span className="text-red-600">Incorrect. The correct answer is highlighted.</span>
+                    )}
+                </div>
+            )}
+        </div>
+    </div>
+  );
+}
 
 export default function InterviewCoachPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -365,29 +406,38 @@ export default function InterviewCoachPage() {
 
                 <Separator />
                 
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Behavioral Questions</h3>
-                  <Accordion type="single" collapsible className="w-full">
-                    {prepPack.behavioral.map((item, index) => (
-                      <AccordionItem value={`b-${index}`} key={`b-${index}`}>
-                        <AccordionTrigger>{item.question}</AccordionTrigger>
-                        <AccordionContent className="whitespace-pre-wrap text-muted-foreground text-sm">{item.sampleAnswer}</AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Technical & Situational Questions</h3>
-                  <Accordion type="single" collapsible className="w-full">
-                    {prepPack.technical.map((item, index) => (
-                      <AccordionItem value={`t-${index}`} key={`t-${index}`}>
-                        <AccordionTrigger>{item.question}</AccordionTrigger>
-                        <AccordionContent className="whitespace-pre-wrap text-muted-foreground text-sm">{item.sampleAnswer}</AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </div>
+                <Tabs defaultValue="behavioral" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
+                        <TabsTrigger value="technical">Technical</TabsTrigger>
+                        <TabsTrigger value="mcq">Multiple Choice</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="behavioral" className="pt-4">
+                      <Accordion type="single" collapsible className="w-full">
+                        {prepPack.behavioral.map((item, index) => (
+                          <AccordionItem value={`b-${index}`} key={`b-${index}`}>
+                            <AccordionTrigger>{item.question}</AccordionTrigger>
+                            <AccordionContent className="whitespace-pre-wrap text-muted-foreground text-sm">{item.sampleAnswer}</AccordionContent>
+                          </AccordionItem>
+                        ))}
+                      </Accordion>
+                    </TabsContent>
+                    <TabsContent value="technical" className="pt-4">
+                      <Accordion type="single" collapsible className="w-full">
+                        {prepPack.technical.map((item, index) => (
+                          <AccordionItem value={`t-${index}`} key={`t-${index}`}>
+                            <AccordionTrigger>{item.question}</AccordionTrigger>
+                            <AccordionContent className="whitespace-pre-wrap text-muted-foreground text-sm">{item.sampleAnswer}</AccordionContent>
+                          </AccordionItem>
+                        ))}
+                      </Accordion>
+                    </TabsContent>
+                    <TabsContent value="mcq" className="pt-4 space-y-4">
+                       {prepPack.mcqs.map((mcq, index) => (
+                          <McqItem key={index} mcq={mcq} index={index} />
+                       ))}
+                    </TabsContent>
+                </Tabs>
               </motion.div>
             )}
           </AnimatePresence>
