@@ -1,8 +1,9 @@
+
 'use server';
 
 /**
  * @fileOverview An AI-powered tool that provides a similarity score and detailed analysis
- * between a resume and a job description.
+ * between a resume and a job description. Adapted for the Job Search Aggregator feature.
  *
  * - jdResumeSimilarityMatching - A function that handles the resume analysis process.
  * - JdResumeSimilarityMatchingInput - The input type for the analysis function.
@@ -26,12 +27,12 @@ const JdResumeSimilarityMatchingOutputSchema = z.object({
     .describe(
       'A similarity score between 0 and 100, where 100 is a perfect match.'
     ),
-  keywordGaps: z.array(z.string()).describe('A list of the top 10 missing keywords or skills from the resume.'),
-  strengths: z.array(z.string()).describe('A list of 5-10 key strengths from the resume that align with the job description.'),
-  suggestions: z
-    .array(z.string())
+  matches: z.array(z.string()).describe('A list of the top 5 matching keywords or skills from the resume.'),
+  gaps: z.array(z.string()).describe('A list of the top 5 missing or weak skills from the resume.'),
+  summary: z
+    .string()
     .describe(
-      'Actionable suggestions on how to improve the resume to better match the job description.'
+      'A 2-3 sentence summary explaining why the candidate is a good fit.'
     ),
 });
 export type JdResumeSimilarityMatchingOutput = z.infer<
@@ -61,17 +62,12 @@ const jdResumeSimilarityMatchingPrompt = ai.definePrompt({
 
   Your task is to:
   1. Assign a similarity score from 0 to 100 representing how well the resume matches the job description.
-  2. List the top 10 most important keywords or skills from the job description that are missing from the resume.
-  3. Highlight 5–10 key strengths from the resume that are highly relevant to the job description.
-  4. Provide specific, actionable suggestions to rephrase or add content to the resume to make it more aligned with the job description.
+  2. List the top 5 most important keywords or skills from the job description that are present in the resume.
+  3. List the top 5 most important keywords or skills from the job description that are missing from the resume.
+  4. Provide a 2-3 sentence summary explaining why the candidate is a good fit for the role, based on their resume.
 
-  Return your analysis in the following structured JSON format:
-  {
-    "score": (number from 0-100),
-    "keywordGaps": ["Missing keyword 1", "Missing skill 2", ...],
-    "strengths": ["Relevant strength 1", "Matching experience 2", ...],
-    "suggestions": ["Suggestion 1 to improve resume", "Suggestion 2", ...]
-  }`,
+  Return your analysis in the specified structured JSON format.
+  `,
 });
 
 const jdResumeSimilarityMatchingFlow = ai.defineFlow(
