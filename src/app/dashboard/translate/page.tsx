@@ -68,7 +68,7 @@ const formSchema = z.object({
   targetLanguage: z.string().min(1, 'Please select a target language.'),
 }).refine(data => data.resumeId || data.resumeFile, {
     message: "Please select or upload a resume.",
-    path: ["resumeId"],
+    path: ["resumeId"], // This path can be arbitrary, just needs to point to one of the fields.
 });
 
 
@@ -370,5 +370,3 @@ export default function TranslatePage() {
     </div>
   );
 }
-
-    
