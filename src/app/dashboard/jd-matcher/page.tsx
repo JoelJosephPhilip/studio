@@ -354,7 +354,7 @@ export default function JdMatcherPage() {
                     <div className="relative w-32 h-32 mx-auto">
                         <Progress value={analysisResult.score} className="absolute inset-0 w-full h-full rounded-full" />
                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="font-bold text-3xl text-primary-foreground">{analysisResult.score}<span className="text-base">%</span></span>
+                            <span className="font-bold text-3xl text-primary">{analysisResult.score}<span className="text-base">%</span></span>
                         </div>
                     </div>
                 </div>
@@ -389,5 +389,3 @@ export default function JdMatcherPage() {
     </div>
   );
 }
-
-    
