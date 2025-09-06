@@ -55,14 +55,10 @@ const formSchema = z.object({
   resumeId: z.string().optional(),
   resumeFile: z.any().optional(),
   resumeText: z.string().optional(),
-  jobDescription: z.string().optional(),
-  jdFile: z.any().optional(),
+  jobDescription: z.string().min(50, 'Please paste or upload a job description.'),
 }).refine(data => data.resumeId || data.resumeFile || (data.resumeText && data.resumeText.length > 50), {
     message: "Please select, upload, or paste a resume.",
     path: ["resumeId"],
-}).refine(data => data.jdFile || (data.jobDescription && data.jobDescription.length > 50), {
-    message: "Please upload or paste a job description.",
-    path: ["jobDescription"],
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -72,9 +68,7 @@ export default function JdMatcherPage() {
   const [analysisResult, setAnalysisResult] = useState<JdResumeSimilarityMatchingOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
-  const [jdFileName, setJdFileName] = useState<string | null>(null);
   const resumeFileInputRef = useRef<HTMLInputElement>(null);
-  const jdFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
   const [user] = useAuthState(auth);
@@ -136,16 +130,6 @@ export default function JdMatcherPage() {
       form.clearErrors('resumeId');
     }
   };
-  
-  const handleJdFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      form.setValue('jdFile', file);
-      form.setValue('jobDescription', ''); // Clear pasted text
-      setJdFileName(file.name);
-      form.clearErrors('jobDescription');
-    }
-  };
 
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
@@ -168,17 +152,9 @@ export default function JdMatcherPage() {
             resumeText = selectedResume.content;
         }
 
-        let jobDescriptionText = '';
-        if (values.jobDescription && values.jobDescription.length > 50) {
-            jobDescriptionText = values.jobDescription;
-        } else if (values.jdFile) {
-            const file = values.jdFile as File;
-            jobDescriptionText = await extractTextFromFile(file);
-        }
-
       const result = await jdResumeSimilarityMatching({
         resumeText: resumeText,
-        jobDescriptionText: jobDescriptionText,
+        jobDescriptionText: values.jobDescription,
       });
       setAnalysisResult(result);
     } catch (error: any) {
@@ -318,39 +294,12 @@ export default function JdMatcherPage() {
                 name="jobDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex justify-between items-center">
-                      <FormLabel>Job Description</FormLabel>
-                       <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={isLoading}
-                          onClick={() => jdFileInputRef.current?.click()}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          Upload File
-                        </Button>
-                        <Input
-                          type="file"
-                          className="hidden"
-                          ref={jdFileInputRef}
-                          onChange={handleJdFileChange}
-                          accept=".pdf,.txt"
-                        />
-                    </div>
+                    <FormLabel>Paste Job Description</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Paste the full job description here, or upload a file..."
+                        placeholder="Paste the full job description here..."
                         className="min-h-[250px]"
                         {...field}
-                        value={jdFileName ? `File uploaded: ${jdFileName}`: field.value}
-                        readOnly={!!jdFileName}
-                        onChange={(e) => {
-                            field.onChange(e);
-                            form.setValue('jdFile', undefined);
-                            setJdFileName(null);
-                            form.clearErrors('jobDescription');
-                        }}
                       />
                     </FormControl>
                     <FormMessage />

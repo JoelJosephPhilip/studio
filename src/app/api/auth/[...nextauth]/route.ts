@@ -21,9 +21,9 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async session({ session, token }) {
-      if (session?.user && token?.sub) {
+      if (session?.user && token?.email) {
         // Use email as the consistent ID in the session user object
-        session.user.id = token.email as string;
+        session.user.id = token.email;
       }
       return session;
     },
