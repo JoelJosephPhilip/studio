@@ -43,7 +43,7 @@ const searchJobsFlow = ai.defineFlow(
           jobType: 'fulltime',
           radius: '50',
           sort: 'relevance',
-          fromDays: '30',
+          fromDays: '7',
           country: 'us'
         }
       })
