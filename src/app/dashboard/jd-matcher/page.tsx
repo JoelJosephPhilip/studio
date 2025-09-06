@@ -54,9 +54,10 @@ if (typeof window !== 'undefined') {
 const formSchema = z.object({
   resumeId: z.string().optional(),
   resumeFile: z.any().optional(),
+  resumeText: z.string().optional(),
   jobDescription: z.string().min(50, 'Please paste the full job description.'),
-}).refine(data => data.resumeId || data.resumeFile, {
-    message: "Please select a saved resume or upload a new one.",
+}).refine(data => data.resumeId || data.resumeFile || (data.resumeText && data.resumeText.length > 50), {
+    message: "Please select, upload, or paste a resume.",
     path: ["resumeId"],
 });
 
@@ -76,6 +77,7 @@ export default function JdMatcherPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       jobDescription: '',
+      resumeText: '',
     },
   });
 
@@ -123,6 +125,7 @@ export default function JdMatcherPage() {
     if (file) {
       form.setValue('resumeFile', file);
       form.setValue('resumeId', undefined); // Clear selected resume
+      form.setValue('resumeText', ''); // Clear pasted text
       setFileName(file.name);
       form.clearErrors('resumeId');
     }
@@ -134,7 +137,9 @@ export default function JdMatcherPage() {
 
     try {
         let resumeText = '';
-        if (values.resumeFile) {
+        if (values.resumeText && values.resumeText.length > 50) {
+            resumeText = values.resumeText;
+        } else if (values.resumeFile) {
             const file = values.resumeFile as File;
             resumeText = await extractTextFromFile(file);
         } else if (values.resumeId) {
@@ -181,12 +186,21 @@ export default function JdMatcherPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <Tabs defaultValue="select" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="select" onClick={() => {
                         form.setValue('resumeFile', undefined);
+                        form.setValue('resumeText', '');
                         setFileName(null);
-                    }}>Select Saved Resume</TabsTrigger>
-                    <TabsTrigger value="upload">Upload New Resume</TabsTrigger>
+                    }}>Select Saved</TabsTrigger>
+                    <TabsTrigger value="upload" onClick={() => {
+                        form.setValue('resumeId', undefined);
+                        form.setValue('resumeText', '');
+                    }}>Upload File</TabsTrigger>
+                    <TabsTrigger value="paste" onClick={() => {
+                        form.setValue('resumeId', undefined);
+                        form.setValue('resumeFile', undefined);
+                        setFileName(null);
+                    }}>Paste Text</TabsTrigger>
                 </TabsList>
                 <TabsContent value="select" className="pt-4">
                   <FormField
@@ -198,6 +212,7 @@ export default function JdMatcherPage() {
                         <Select onValueChange={(value) => {
                             field.onChange(value);
                             form.setValue('resumeFile', undefined);
+                            form.setValue('resumeText', '');
                             setFileName(null);
                             form.clearErrors('resumeId');
                         }} defaultValue={field.value} disabled={resumes.length === 0}>
@@ -249,6 +264,32 @@ export default function JdMatcherPage() {
                       </FormItem>
                     )}
                   />
+                </TabsContent>
+                <TabsContent value="paste" className="pt-4">
+                  <FormField
+                      control={form.control}
+                      name="resumeText"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Paste Your Resume</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Paste the full text of your resume here..."
+                              className="min-h-[150px]"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                form.setValue('resumeId', undefined);
+                                form.setValue('resumeFile', undefined);
+                                setFileName(null);
+                                form.clearErrors('resumeId');
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                 </TabsContent>
               </Tabs>
               
@@ -302,7 +343,7 @@ export default function JdMatcherPage() {
               <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg min-h-[400px]">
                 <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="font-bold text-xl">Ready for Analysis</h3>
-                <p className="text-muted-foreground">Select or upload a resume and paste a job description to get started.</p>
+                <p className="text-muted-foreground">Provide your resume and a job description to get started.</p>
               </motion.div>
             )}
 
@@ -348,3 +389,5 @@ export default function JdMatcherPage() {
     </div>
   );
 }
+
+    
