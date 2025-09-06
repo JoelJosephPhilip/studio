@@ -353,7 +353,7 @@ export default function JdMatcherPage() {
                     <h4 className="font-semibold text-lg">Similarity Score</h4>
                     <div className="relative w-32 h-32 mx-auto">
                         <Progress value={analysisResult.score} className="absolute inset-0 w-full h-full rounded-full" />
-                         <div className="absolute inset-0 flex items-center justify-center">
+                         <div className="absolute inset-0 flex items-center justify-center border-2 border-black rounded-full">
                             <span className="font-bold text-3xl text-primary-foreground">{analysisResult.score}<span className="text-base">%</span></span>
                         </div>
                     </div>
@@ -389,5 +389,3 @@ export default function JdMatcherPage() {
     </div>
   );
 }
-
-    
