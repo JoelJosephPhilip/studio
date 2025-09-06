@@ -8,8 +8,9 @@ import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Search, FileText, Lightbulb, ThumbsUp, XCircle, Upload } from 'lucide-react';
+import { Loader2, Search, FileText, Lightbulb, ThumbsUp, XCircle, Upload, Download } from 'lucide-react';
 import * as pdfjsLib from "pdfjs-dist";
+import jsPDF from 'jspdf';
 
 import {
   Card,
@@ -168,6 +169,53 @@ export default function JdMatcherPage() {
       setIsLoading(false);
     }
   }
+  
+  const downloadReportAsPdf = () => {
+    if (!analysisResult) return;
+    const doc = new jsPDF();
+    const margin = 15;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPos = margin;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("JD-Resume Match Analysis Report", margin, yPos);
+    yPos += 15;
+
+    doc.setFontSize(16);
+    doc.text(`Overall Similarity Score: ${analysisResult.score}%`, margin, yPos);
+    yPos += 15;
+
+    const addSection = (title: string, items: string[]) => {
+      if (yPos > pageHeight - margin * 2) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text(title, margin, yPos);
+      yPos += 8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      
+      items.forEach(item => {
+        const splitText = doc.splitTextToSize(`• ${item}`, doc.internal.pageSize.getWidth() - margin * 2);
+        if (yPos + (splitText.length * 5) > pageHeight - margin) {
+            doc.addPage();
+            yPos = margin;
+        }
+        doc.text(splitText, margin + 5, yPos);
+        yPos += splitText.length * 5 + 2;
+      });
+      yPos += 5; // Extra space after a section
+    };
+    
+    addSection("Suggestions for Improvement", analysisResult.suggestions);
+    addSection("Your Strengths", analysisResult.strengths);
+    addSection("Keyword Gaps", analysisResult.keywordGaps);
+
+    doc.save("jd_match_report.pdf");
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -377,6 +425,10 @@ export default function JdMatcherPage() {
                         </ul>
                     </TabsContent>
                 </Tabs>
+                <Button onClick={downloadReportAsPdf}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report as PDF
+                </Button>
               </motion.div>
             )}
           </AnimatePresence>
