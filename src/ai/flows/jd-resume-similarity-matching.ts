@@ -1,28 +1,37 @@
-// This is an AI-powered tool that provides a similarity score between a resume and a job description.
-
 'use server';
+
+/**
+ * @fileOverview An AI-powered tool that provides a similarity score and detailed analysis
+ * between a resume and a job description.
+ *
+ * - jdResumeSimilarityMatching - A function that handles the resume analysis process.
+ * - JdResumeSimilarityMatchingInput - The input type for the analysis function.
+ * - JdResumeSimilarityMatchingOutput - The return type for the analysis function.
+ */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const JdResumeSimilarityMatchingInputSchema = z.object({
-  resume: z.string().describe('The content of the resume.'),
-  jobDescription: z.string().describe('The content of the job description.'),
+  resumeText: z.string().describe('The content of the resume.'),
+  jobDescriptionText: z.string().describe('The content of the job description.'),
 });
 export type JdResumeSimilarityMatchingInput = z.infer<
   typeof JdResumeSimilarityMatchingInputSchema
 >;
 
 const JdResumeSimilarityMatchingOutputSchema = z.object({
-  similarityScore: z
+  score: z
     .number()
     .describe(
-      'A score between 0 and 1 indicating the similarity between the resume and the job description. Higher scores indicate greater similarity.'
+      'A similarity score between 0 and 100, where 100 is a perfect match.'
     ),
+  keywordGaps: z.array(z.string()).describe('A list of the top 10 missing keywords or skills from the resume.'),
+  strengths: z.array(z.string()).describe('A list of 5-10 key strengths from the resume that align with the job description.'),
   suggestions: z
-    .string()
+    .array(z.string())
     .describe(
-      'Personalized suggestions on how to improve the resume to better match the job description.'
+      'Actionable suggestions on how to improve the resume to better match the job description.'
     ),
 });
 export type JdResumeSimilarityMatchingOutput = z.infer<
@@ -39,22 +48,29 @@ const jdResumeSimilarityMatchingPrompt = ai.definePrompt({
   name: 'jdResumeSimilarityMatchingPrompt',
   input: {schema: JdResumeSimilarityMatchingInputSchema},
   output: {schema: JdResumeSimilarityMatchingOutputSchema},
-  prompt: `You are an expert career coach. Your task is to compare a resume against a job description and provide a similarity score and suggestions for improvement.
+  prompt: `You are an expert ATS and career coach AI. Compare the following resume with the job description.
 
-  Analyze the resume and job description to identify matching skills, keywords, and experiences. Provide a similarity score between 0 and 1, where 1 indicates a perfect match.
+  Resume:
+  ---
+  {{{resumeText}}}
+  ---
+  Job Description:
+  ---
+  {{{jobDescriptionText}}}
+  ---
 
-  In addition to the similarity score, provide personalized suggestions on how the candidate can improve their resume to better align with the requirements of the job description.
+  Your task is to:
+  1. Assign a similarity score from 0 to 100 representing how well the resume matches the job description.
+  2. List the top 10 most important keywords or skills from the job description that are missing from the resume.
+  3. Highlight 5–10 key strengths from the resume that are highly relevant to the job description.
+  4. Provide specific, actionable suggestions to rephrase or add content to the resume to make it more aligned with the job description.
 
-  Here is the resume:
-  {{resume}}
-
-  Here is the job description:
-  {{jobDescription}}
-
-  Respond with a JSON object:
-  { 
-    similarityScore: number,
-    suggestions: string
+  Return your analysis in the following structured JSON format:
+  {
+    "score": (number from 0-100),
+    "keywordGaps": ["Missing keyword 1", "Missing skill 2", ...],
+    "strengths": ["Relevant strength 1", "Matching experience 2", ...],
+    "suggestions": ["Suggestion 1 to improve resume", "Suggestion 2", ...]
   }`,
 });
 
