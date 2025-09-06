@@ -62,7 +62,13 @@ const searchJobsFlow = ai.defineFlow(
     const data: any = await response.json();
     console.log("Indeed API raw response:", JSON.stringify(data, null, 2));
 
-    const results = data ?? [];
+    // Defensively find the array of jobs, whether it's the root response or nested.
+    const results = Array.isArray(data) ? data : data.results || data.hits || [];
+    
+    if (!Array.isArray(results)) {
+        console.error("API response did not contain a valid jobs array. Response:", data);
+        throw new Error("Invalid response structure from job search API.");
+    }
 
     const jobs = results.map((job: any) => ({
       id: String(job.jobId ?? crypto.randomUUID()),
