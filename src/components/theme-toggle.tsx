@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,6 +15,17 @@ import {
 
 export function ThemeToggle() {
   const { setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    // Render a placeholder or nothing on the server
+    // and during the initial client-side render
+    return <div className="h-10 w-10" />
+  }
 
   return (
     <DropdownMenu>
