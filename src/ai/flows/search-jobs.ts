@@ -44,47 +44,48 @@ const searchJobsFlow = ai.defineFlow(
       attempts++;
       try {
         const response = await fetch(url, options);
+        
         if (!response.ok) {
           const errorBody = await response.text();
-          // If it's a server error and we can still retry, log it and continue
+          lastError = new Error(`API request failed with status ${response.status}: ${errorBody}`);
+          
+          // Retry only on server errors (5xx)
           if (response.status >= 500 && attempts < maxAttempts) {
             console.warn(`Attempt ${attempts} failed with status ${response.status}. Retrying...`);
-            lastError = new Error(`API request failed with status ${response.status}: ${errorBody}`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // wait longer each time
-            continue; // This will trigger the next iteration of the while loop
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+            continue;
           }
-          // If it's not a server error or we are out of retries, throw the error
+          
+          // For non-server errors or after all retries, throw immediately.
           console.error(`API Error Response (Status: ${response.status}): ${errorBody}`);
-          throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
+          throw lastError;
         }
         
         const data: any = await response.json();
 
-        // Normalize the API response to our Job schema
+        // Defensive mapping to prevent schema validation errors
         const jobs = data.hits.map((job: any) => ({
-          id: job.id,
+          id: String(job.id ?? crypto.randomUUID()),
           source: 'Indeed',
-          title: job.title,
-          company: job.company_name,
-          location: job.location,
-          description: job.description,
-          url: job.url,
+          title: job.title ?? "Untitled Job",
+          company: job.company_name ?? "Unknown Company",
+          location: job.location ?? "Not specified",
+          description: job.description ?? "No description provided.",
+          url: job.url?.startsWith("http") ? job.url : `https://indeed.com/viewjob?jk=${job.id}`,
         }));
         
-        // If successful, return the data and exit the loop
         return { jobs };
 
       } catch (error: any) {
         lastError = error;
-        console.error(`Attempt ${attempts} - An error occurred:`, error.message);
-        // If it's a network error or similar, and we can still retry
+        console.error(`Attempt ${attempts} - An error occurred during fetch:`, error.message);
         if (attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
         }
       }
     }
     
-    // If the loop completes without returning, it means all attempts have failed.
-    throw new Error(`Failed to fetch jobs from the external API after ${maxAttempts} attempts. Last known error: ${lastError?.message || 'Unknown error'}`);
+    // If all attempts fail, throw the last known error.
+    throw new Error(`Failed to fetch jobs after ${maxAttempts} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
   }
 );
