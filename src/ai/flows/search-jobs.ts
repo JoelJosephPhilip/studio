@@ -40,8 +40,8 @@ const searchJobsFlow = ai.defineFlow(
       const response = await fetch(url, options);
       if (!response.ok) {
         const errorBody = await response.text();
-        console.error(`API Error Response: ${errorBody}`);
-        throw new Error(`API request failed with status ${response.status}`);
+        console.error(`API Error Response (Status: ${response.status}): ${errorBody}`);
+        throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
       }
       
       const data: any = await response.json();
@@ -61,7 +61,7 @@ const searchJobsFlow = ai.defineFlow(
 
     } catch (error: any) {
       console.error('Failed to fetch jobs:', error);
-      throw new Error('Failed to fetch jobs from the external API.');
+      throw new Error(`Failed to fetch jobs from the external API. Reason: ${error.message}`);
     }
   }
 );
