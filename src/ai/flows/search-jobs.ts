@@ -28,7 +28,15 @@ const searchJobsFlow = ai.defineFlow(
     const url = new URL('https://serpapi.com/search.json');
     url.searchParams.append('engine', 'google_jobs');
     url.searchParams.append('q', query);
-    url.searchParams.append('location', location);
+    
+    // SerpApi uses a 'chips' parameter for filters like "remote".
+    // If the user enters "remote", we use the chips parameter instead of location.
+    if (location.toLowerCase().trim() === 'remote') {
+      url.searchParams.append('chips', 'remote');
+    } else {
+      url.searchParams.append('location', location);
+    }
+    
     url.searchParams.append('api_key', apiKey);
 
     const options = {
