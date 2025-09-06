@@ -127,6 +127,7 @@ export default function InterviewCoachPage() {
   const [mcqTopic, setMcqTopic] = useState('');
   const [isGeneratingTopicMcqs, setIsGeneratingTopicMcqs] = useState(false);
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [currentResumeText, setCurrentResumeText] = useState<string | null>(null);
   const resumeFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
@@ -162,7 +163,7 @@ export default function InterviewCoachPage() {
     }
   }, [userEmail, toast]);
 
-  const getResumeTextFromState = async (): Promise<string> => {
+  const getResumeTextFromForm = async (): Promise<string> => {
     const values = form.getValues();
     if (values.resumeText && values.resumeText.length > 50) {
         return values.resumeText;
@@ -211,9 +212,11 @@ export default function InterviewCoachPage() {
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
     setPrepPack(null);
+    setCurrentResumeText(null);
 
     try {
-      const resumeText = await getResumeTextFromState();
+      const resumeText = await getResumeTextFromForm();
+      setCurrentResumeText(resumeText); // Store the resume text in state
       const result = await generateInterviewPrepPack({
         resumeText: resumeText,
         jobTitle: values.jobTitle,
@@ -233,12 +236,18 @@ export default function InterviewCoachPage() {
   }
   
   const handleGenerateMore = async (category: keyof LoadingMoreState) => {
-    if (!prepPack) return;
+    if (!prepPack || !currentResumeText) {
+       toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Cannot generate more questions without an initial prep pack.',
+      });
+      return;
+    };
 
     setLoadingMore(prev => ({ ...prev, [category]: true }));
 
     try {
-        const resumeText = await getResumeTextFromState();
         const { jobTitle, jobDescription } = form.getValues();
         
         let existingQuestions: string[] = [];
@@ -249,7 +258,7 @@ export default function InterviewCoachPage() {
         }
 
         const result = await generateMoreQuestions({
-            resumeText,
+            resumeText: currentResumeText,
             jobTitle,
             jobDescription,
             category,
