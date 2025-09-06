@@ -44,6 +44,9 @@ import { jdResumeSimilarityMatching, type JdResumeSimilarityMatchingOutput } fro
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { searchJobs } from '@/ai/flows/search-jobs';
+import type { Job, EnrichedJob } from '@/ai/schemas/job-search-schemas';
+
 
 // Setup for PDF.js worker
 if (typeof window !== 'undefined') {
@@ -65,23 +68,6 @@ const formSchema = z.object({
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
-
-const mockJobs = [
-    { id: '1', source: 'LinkedIn', title: 'Senior Product Manager', company: 'Innovate Inc.', location: 'San Francisco, CA', description: 'Lead the development of our flagship product...', url: 'https://www.linkedin.com/jobs/view/3866668541' },
-    { id: '2', source: 'Indeed', title: 'Frontend Developer (React)', company: 'Creative Solutions', location: 'Remote', description: 'Build beautiful and responsive user interfaces...', url: 'https://www.indeed.com/viewjob?jk=12345' },
-    { id: '3', source: 'Indeed', title: 'Data Scientist', company: 'Analytics Corp', location: 'New York, NY', description: 'Analyze large datasets to extract meaningful insights...', url: 'https://www.indeed.com/viewjob?jk=67890' },
-    { id: '4', source: 'LinkedIn', title: 'Cloud Solutions Architect', company: 'CloudBase', location: 'Austin, TX', description: 'Design and implement scalable cloud infrastructure on AWS...', url: 'https://www.linkedin.com/jobs/view/3860345987' },
-    { id: '5', source: 'Indeed', title: 'UX/UI Designer', company: 'PixelPerfect', location: 'Remote', description: 'Create intuitive and visually appealing user experiences...', url: 'https://www.indeed.com/viewjob?jk=abcde' },
-    { id: '6', source: 'LinkedIn', title: 'DevOps Engineer', company: 'AutomateIt', location: 'Seattle, WA', description: 'Build and maintain our CI/CD pipelines...', url: 'https://www.linkedin.com/jobs/view/3860345988' },
-    { id: '7', source: 'LinkedIn', title: 'Marketing Manager', company: 'Growth Co.', location: 'Chicago, IL', description: 'Develop and execute marketing campaigns to drive growth...', url: 'https://www.linkedin.com/jobs/view/3860345989' },
-    { id: '8', source: 'Indeed', title: 'Backend Engineer (Node.js)', company: 'ServerSide Inc.', location: 'Boston, MA', description: 'Develop robust and scalable server-side applications...', url: 'https://www.indeed.com/viewjob?jk=fghij' },
-];
-
-type EnrichedJob = (typeof mockJobs)[0] & {
-  matchReport?: JdResumeSimilarityMatchingOutput;
-  isSaving?: boolean;
-};
-
 
 export default function JobSearchPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -173,8 +159,19 @@ export default function JobSearchPage() {
             resumeText = selectedResume.content;
         }
 
+        const jobResults = await searchJobs({
+          query: values.role,
+          location: values.location,
+        });
+
+        if (!jobResults.jobs || jobResults.jobs.length === 0) {
+            toast({ title: "No Jobs Found", description: "Your search did not return any results. Try a different role or location." });
+            setIsLoading(false);
+            return;
+        }
+
         const jobsWithScores = await Promise.all(
-            mockJobs.map(async (job) => {
+            jobResults.jobs.map(async (job) => {
                 const matchReport = await jdResumeSimilarityMatching({
                     resumeText: resumeText,
                     jobDescriptionText: `${job.title} at ${job.company}. ${job.description}`,
@@ -183,9 +180,9 @@ export default function JobSearchPage() {
             })
         );
         setEnrichedJobs(jobsWithScores.sort((a, b) => (b.matchReport?.score || 0) - (a.matchReport?.score || 0)));
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error enriching jobs:", error);
-        toast({ variant: "destructive", title: "Analysis Failed", description: "Could not analyze jobs. Please try again." });
+        toast({ variant: "destructive", title: "Analysis Failed", description: error.message || "Could not analyze jobs. Please try again." });
     } finally {
         setIsLoading(false);
     }
