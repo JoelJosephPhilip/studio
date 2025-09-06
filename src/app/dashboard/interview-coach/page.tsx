@@ -42,6 +42,7 @@ import { getResumes, type Resume } from '@/app/actions/resume-actions';
 import { generateInterviewPrepPack, type AiInterviewCoachOutput } from '@/ai/flows/ai-interview-coach';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 
 // Setup for PDF.js worker
@@ -55,9 +56,10 @@ if (typeof window !== 'undefined') {
 const formSchema = z.object({
   resumeId: z.string().optional(),
   resumeFile: z.any().optional(),
+  resumeText: z.string().optional(),
   jobTitle: z.string().min(2, 'Please enter a job title.'),
-}).refine(data => data.resumeId || data.resumeFile, {
-    message: "Please select or upload a resume.",
+}).refine(data => data.resumeId || data.resumeFile || (data.resumeText && data.resumeText.length > 50), {
+    message: "Please select, upload, or paste a resume.",
     path: ["resumeId"],
 });
 
@@ -78,6 +80,7 @@ export default function InterviewCoachPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       jobTitle: '',
+      resumeText: '',
     },
   });
 
@@ -125,6 +128,7 @@ export default function InterviewCoachPage() {
     if (file) {
       form.setValue('resumeFile', file);
       form.setValue('resumeId', undefined); // Clear selected resume
+      form.setValue('resumeText', ''); // Clear pasted text
       setResumeFileName(file.name);
       form.clearErrors('resumeId');
     }
@@ -136,7 +140,9 @@ export default function InterviewCoachPage() {
 
     try {
         let resumeText = '';
-        if (values.resumeFile) {
+        if (values.resumeText && values.resumeText.length > 50) {
+            resumeText = values.resumeText;
+        } else if (values.resumeFile) {
             const file = values.resumeFile as File;
             resumeText = await extractTextFromFile(file);
         } else if (values.resumeId) {
@@ -179,14 +185,21 @@ export default function InterviewCoachPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <Tabs defaultValue="select" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="select" onClick={() => {
                         form.setValue('resumeFile', undefined);
+                        form.setValue('resumeText', '');
                         setResumeFileName(null);
                     }}>Select Saved</TabsTrigger>
                     <TabsTrigger value="upload" onClick={() => {
                         form.setValue('resumeId', undefined);
+                        form.setValue('resumeText', '');
                     }}>Upload New</TabsTrigger>
+                    <TabsTrigger value="paste" onClick={() => {
+                        form.setValue('resumeId', undefined);
+                        form.setValue('resumeFile', undefined);
+                        setResumeFileName(null);
+                    }}>Paste Text</TabsTrigger>
                 </TabsList>
                 <TabsContent value="select" className="pt-4">
                   <FormField
@@ -198,6 +211,7 @@ export default function InterviewCoachPage() {
                         <Select onValueChange={(value) => {
                             field.onChange(value);
                             form.setValue('resumeFile', undefined);
+                            form.setValue('resumeText', '');
                             setResumeFileName(null);
                             form.clearErrors('resumeId');
                         }} defaultValue={field.value} disabled={resumes.length === 0}>
@@ -249,6 +263,32 @@ export default function InterviewCoachPage() {
                       </FormItem>
                     )}
                   />
+                </TabsContent>
+                 <TabsContent value="paste" className="pt-4">
+                  <FormField
+                      control={form.control}
+                      name="resumeText"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Paste Your Resume</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Paste the full text of your resume here..."
+                              className="min-h-[150px]"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                form.setValue('resumeId', undefined);
+                                form.setValue('resumeFile', undefined);
+                                setResumeFileName(null);
+                                form.clearErrors('resumeId');
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                 </TabsContent>
               </Tabs>
 
@@ -356,5 +396,3 @@ export default function InterviewCoachPage() {
     </div>
   );
 }
-
-    
