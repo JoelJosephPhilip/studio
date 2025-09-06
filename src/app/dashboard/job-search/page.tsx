@@ -66,12 +66,12 @@ const formSchema = z.object({
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
-// Mock job data as we can't call external APIs
+// Mock job data with realistic URLs
 const mockJobs = [
-    { id: '1', title: 'Senior Product Manager', company: 'Innovate Inc.', location: 'San Francisco, CA', description: 'Lead the development of our flagship product...', url: '#' },
-    { id: '2', title: 'Frontend Developer (React)', company: 'Creative Solutions', location: 'Remote', description: 'Build beautiful and responsive user interfaces...', url: '#' },
-    { id: '3', title: 'Data Scientist', company: 'Analytics Corp', location: 'New York, NY', description: 'Analyze large datasets to extract meaningful insights...', url: '#' },
-    { id: '4', title: 'Cloud Solutions Architect', company: 'CloudBase', location: 'Austin, TX', description: 'Design and implement scalable cloud infrastructure on AWS...', url: '#' },
+    { id: '1', title: 'Senior Product Manager', company: 'Innovate Inc.', location: 'San Francisco, CA', description: 'Lead the development of our flagship product...', url: 'https://careers.google.com/jobs' },
+    { id: '2', title: 'Frontend Developer (React)', company: 'Creative Solutions', location: 'Remote', description: 'Build beautiful and responsive user interfaces...', url: 'https://www.linkedin.com/jobs' },
+    { id: '3', title: 'Data Scientist', company: 'Analytics Corp', location: 'New York, NY', description: 'Analyze large datasets to extract meaningful insights...', url: 'https://www.indeed.com/q-Data-Scientist-jobs.html' },
+    { id: '4', title: 'Cloud Solutions Architect', company: 'CloudBase', location: 'Austin, TX', description: 'Design and implement scalable cloud infrastructure on AWS...', url: 'https://www.amazon.jobs/en/job_categories/solutions-architect' },
 ];
 
 type EnrichedJob = (typeof mockJobs)[0] & {
