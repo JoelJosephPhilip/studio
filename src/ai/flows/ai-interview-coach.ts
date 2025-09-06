@@ -14,6 +14,7 @@ import {z} from 'genkit';
 const AiInterviewCoachInputSchema = z.object({
   resumeText: z.string().describe("The text content of the user's resume."),
   jobTitle: z.string().describe('The job title the user is interviewing for.'),
+  jobDescription: z.string().optional().describe('The job description for the role.'),
 });
 export type AiInterviewCoachInput = z.infer<typeof AiInterviewCoachInputSchema>;
 
@@ -51,16 +52,22 @@ const prompt = ai.definePrompt({
   output: {schema: AiInterviewCoachOutputSchema},
   prompt: `You are an expert career coach and interviewer for the role of {{{jobTitle}}}.
 
-Your task is to create an "Interview Prep Pack" based on the user's resume.
+Your task is to create an "Interview Prep Pack" based on the user's resume and, if provided, the job description.
 
 Here is the user's resume:
 ---
 {{{resumeText}}}
 ---
+{{#if jobDescription}}
+Here is the job description:
+---
+{{{jobDescription}}}
+---
+{{/if}}
 
-Based on the resume and the job title '{{{jobTitle}}}', please perform the following:
+Based on the provided information, please perform the following:
 1.  Generate 5 insightful behavioral interview questions that an interviewer would likely ask.
-2.  Generate 5 role-specific technical or situational questions.
+2.  Generate 5 role-specific technical or situational questions, tailored to the job description if available.
 3.  For EACH of the 10 questions above, provide a strong, detailed sample answer that the user could use as inspiration. The answers should subtly incorporate strengths and experiences from the provided resume.
 4.  Generate 5 multiple-choice questions (MCQs) relevant to the role, each with 4 distinct options and a clearly identified correct answer.
 5.  Provide a summary of feedback, including 3 key strengths to highlight during the interview and 3 potential areas for improvement or topics the user should be prepared to address.

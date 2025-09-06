@@ -61,6 +61,7 @@ const formSchema = z.object({
   resumeFile: z.any().optional(),
   resumeText: z.string().optional(),
   jobTitle: z.string().min(2, 'Please enter a job title.'),
+  jobDescription: z.string().optional(),
 }).refine(data => data.resumeId || data.resumeFile || (data.resumeText && data.resumeText.length > 50), {
     message: "Please select, upload, or paste a resume.",
     path: ["resumeId"],
@@ -123,6 +124,7 @@ export default function InterviewCoachPage() {
     defaultValues: {
       jobTitle: '',
       resumeText: '',
+      jobDescription: '',
     },
   });
 
@@ -200,6 +202,7 @@ export default function InterviewCoachPage() {
       const result = await generateInterviewPrepPack({
         resumeText: resumeText,
         jobTitle: values.jobTitle,
+        jobDescription: values.jobDescription,
       });
       setPrepPack(result);
     } catch (error: any) {
@@ -342,6 +345,24 @@ export default function InterviewCoachPage() {
                     <FormLabel>Job Title You're Applying For</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., Senior Product Manager" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="jobDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Job Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Paste the job description here for more accurate questions..."
+                        className="min-h-[150px]"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
