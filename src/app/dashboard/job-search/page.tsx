@@ -66,12 +66,15 @@ const formSchema = z.object({
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
-// Mock job data with realistic URLs
 const mockJobs = [
-    { id: '1', title: 'Senior Product Manager', company: 'Innovate Inc.', location: 'San Francisco, CA', description: 'Lead the development of our flagship product...', url: 'https://careers.google.com/jobs' },
-    { id: '2', title: 'Frontend Developer (React)', company: 'Creative Solutions', location: 'Remote', description: 'Build beautiful and responsive user interfaces...', url: 'https://www.linkedin.com/jobs' },
-    { id: '3', title: 'Data Scientist', company: 'Analytics Corp', location: 'New York, NY', description: 'Analyze large datasets to extract meaningful insights...', url: 'https://www.indeed.com/q-Data-Scientist-jobs.html' },
-    { id: '4', title: 'Cloud Solutions Architect', company: 'CloudBase', location: 'Austin, TX', description: 'Design and implement scalable cloud infrastructure on AWS...', url: 'https://www.amazon.jobs/en/job_categories/solutions-architect' },
+    { id: '1', source: 'LinkedIn', title: 'Senior Product Manager', company: 'Innovate Inc.', location: 'San Francisco, CA', description: 'Lead the development of our flagship product...', url: 'https://www.linkedin.com/jobs/view/3866668541' },
+    { id: '2', source: 'Indeed', title: 'Frontend Developer (React)', company: 'Creative Solutions', location: 'Remote', description: 'Build beautiful and responsive user interfaces...', url: 'https://www.indeed.com/viewjob?jk=12345' },
+    { id: '3', source: 'Indeed', title: 'Data Scientist', company: 'Analytics Corp', location: 'New York, NY', description: 'Analyze large datasets to extract meaningful insights...', url: 'https://www.indeed.com/viewjob?jk=67890' },
+    { id: '4', source: 'LinkedIn', title: 'Cloud Solutions Architect', company: 'CloudBase', location: 'Austin, TX', description: 'Design and implement scalable cloud infrastructure on AWS...', url: 'https://www.linkedin.com/jobs/view/3860345987' },
+    { id: '5', source: 'Indeed', title: 'UX/UI Designer', company: 'PixelPerfect', location: 'Remote', description: 'Create intuitive and visually appealing user experiences...', url: 'https://www.indeed.com/viewjob?jk=abcde' },
+    { id: '6', source: 'LinkedIn', title: 'DevOps Engineer', company: 'AutomateIt', location: 'Seattle, WA', description: 'Build and maintain our CI/CD pipelines...', url: 'https://www.linkedin.com/jobs/view/3860345988' },
+    { id: '7', source: 'LinkedIn', title: 'Marketing Manager', company: 'Growth Co.', location: 'Chicago, IL', description: 'Develop and execute marketing campaigns to drive growth...', url: 'https://www.linkedin.com/jobs/view/3860345989' },
+    { id: '8', source: 'Indeed', title: 'Backend Engineer (Node.js)', company: 'ServerSide Inc.', location: 'Boston, MA', description: 'Develop robust and scalable server-side applications...', url: 'https://www.indeed.com/viewjob?jk=fghij' },
 ];
 
 type EnrichedJob = (typeof mockJobs)[0] & {
@@ -197,7 +200,7 @@ export default function JobSearchPage() {
         await saveJob({
             userEmail,
             jobData: {
-                source: 'Mock API',
+                source: job.source,
                 title: job.title,
                 company: job.company,
                 location: job.location,
@@ -213,6 +216,15 @@ export default function JobSearchPage() {
         setEnrichedJobs(jobs => jobs.map(j => j.id === job.id ? { ...j, isSaving: false } : j));
     }
   };
+  
+  const jobsBySource = enrichedJobs.reduce((acc, job) => {
+    const source = job.source;
+    if (!acc[source]) {
+      acc[source] = [];
+    }
+    acc[source].push(job);
+    return acc;
+  }, {} as Record<string, EnrichedJob[]>);
 
   return (
     <div className="space-y-6">
@@ -385,52 +397,59 @@ export default function JobSearchPage() {
             )}
         </AnimatePresence>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <AnimatePresence>
-                {enrichedJobs.map((job) => (
-                    <motion.div key={job.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-                        <Card className="h-full flex flex-col">
-                            <CardHeader>
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <CardTitle>{job.title}</CardTitle>
-                                        <CardDescription>{job.company} - {job.location}</CardDescription>
-                                    </div>
-                                    <div className="text-center flex-shrink-0 ml-4">
-                                        <p className="text-xs text-muted-foreground mb-1">Match Score</p>
-                                        <div className="relative h-16 w-16">
-                                            <Progress value={job.matchReport?.score || 0} className="absolute inset-0 w-full h-full rounded-full" />
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="font-bold text-lg text-primary">{job.matchReport?.score || 0}%</span>
+        <div className="space-y-8">
+             <AnimatePresence>
+                {Object.entries(jobsBySource).map(([source, jobs]) => (
+                    <motion.div key={source} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        <h2 className="font-headline text-2xl font-bold mb-4">From {source}</h2>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {jobs.map((job) => (
+                                <motion.div key={job.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+                                    <Card className="h-full flex flex-col">
+                                        <CardHeader>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <CardTitle>{job.title}</CardTitle>
+                                                    <CardDescription>{job.company} - {job.location}</CardDescription>
+                                                </div>
+                                                <div className="text-center flex-shrink-0 ml-4">
+                                                    <p className="text-xs text-muted-foreground mb-1">Match Score</p>
+                                                    <div className="relative h-16 w-16">
+                                                        <Progress value={job.matchReport?.score || 0} className="absolute inset-0 w-full h-full rounded-full" />
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <span className="font-bold text-lg text-primary">{job.matchReport?.score || 0}%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex-grow space-y-2">
-                                <p className="text-sm font-medium">{job.matchReport?.summary}</p>
-                                <div className="flex gap-2">
-                                    <Badge variant="secondary" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"><ThumbsUp className="mr-1 h-3 w-3" />Matches</Badge>
-                                    <p className="text-xs text-muted-foreground truncate">{job.matchReport?.matches.join(', ')}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                     <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"><ThumbsDown className="mr-1 h-3 w-3" />Gaps</Badge>
-                                     <p className="text-xs text-muted-foreground truncate">{job.matchReport?.gaps.join(', ')}</p>
-                                </div>
-                            </CardContent>
-                            <CardFooter className="flex justify-end gap-2">
-                                <Button variant="ghost" asChild>
-                                    <a href={job.url} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink className="mr-2" />
-                                        Apply
-                                    </a>
-                                </Button>
-                                <Button onClick={() => handleSaveJob(job)} disabled={job.isSaving}>
-                                    {job.isSaving ? <Loader2 className="animate-spin" /> : <Save />}
-                                    <span className="ml-2">Save</span>
-                                </Button>
-                            </CardFooter>
-                        </Card>
+                                        </CardHeader>
+                                        <CardContent className="flex-grow space-y-2">
+                                            <p className="text-sm font-medium">{job.matchReport?.summary}</p>
+                                            <div className="flex gap-2">
+                                                <Badge variant="secondary" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"><ThumbsUp className="mr-1 h-3 w-3" />Matches</Badge>
+                                                <p className="text-xs text-muted-foreground truncate">{job.matchReport?.matches.join(', ')}</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                 <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"><ThumbsDown className="mr-1 h-3 w-3" />Gaps</Badge>
+                                                 <p className="text-xs text-muted-foreground truncate">{job.matchReport?.gaps.join(', ')}</p>
+                                            </div>
+                                        </CardContent>
+                                        <CardFooter className="flex justify-end gap-2">
+                                            <Button variant="ghost" asChild>
+                                                <a href={job.url} target="_blank" rel="noopener noreferrer">
+                                                    <ExternalLink className="mr-2" />
+                                                    Apply
+                                                </a>
+                                            </Button>
+                                            <Button onClick={() => handleSaveJob(job)} disabled={job.isSaving}>
+                                                {job.isSaving ? <Loader2 className="animate-spin" /> : <Save />}
+                                                <span className="ml-2">Save</span>
+                                            </Button>
+                                        </CardFooter>
+                                    </Card>
+                                </motion.div>
+                            ))}
+                        </div>
                     </motion.div>
                 ))}
             </AnimatePresence>
@@ -439,3 +458,5 @@ export default function JobSearchPage() {
     </div>
   );
 }
+
+    
