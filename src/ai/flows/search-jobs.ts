@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow for searching jobs using the Indeed API via RapidAPI.
+ * @fileOverview A Genkit flow for searching jobs using the Indeed Scraper API via RapidAPI.
  */
 import { ai } from '@/ai/genkit';
 import { SearchJobsInputSchema, SearchJobsOutputSchema, type SearchJobsInput, type SearchJobsOutput } from '@/ai/schemas/job-search-schemas';
@@ -26,16 +26,27 @@ const searchJobsFlow = ai.defineFlow(
       throw new Error("RAPIDAPI_KEY is not set in the environment variables.");
     }
     
-    const url = `https://indeed12.p.rapidapi.com/jobs/search?query=${encodeURIComponent(
-      query
-    )}&location=${encodeURIComponent(location)}&page_id=1`;
+    const url = 'https://indeed-scraper-api.p.rapidapi.com/api/job';
 
     const options = {
-      method: 'GET',
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'indeed12.p.rapidapi.com'
-      }
+        'X-RapidAPI-Host': 'indeed-scraper-api.p.rapidapi.com'
+      },
+      body: JSON.stringify({
+        scraper: {
+          maxRows: 15,
+          query: query,
+          location: location,
+          jobType: 'fulltime',
+          radius: '50',
+          sort: 'relevance',
+          fromDays: '30',
+          country: 'us'
+        }
+      })
     };
 
     const response = await fetch(url, options);
@@ -51,18 +62,18 @@ const searchJobsFlow = ai.defineFlow(
     const data: any = await response.json();
     console.log("Indeed API raw response:", JSON.stringify(data, null, 2));
 
-    const results = data.hits ?? [];
+    const results = data ?? [];
 
     const jobs = results.map((job: any) => ({
-      id: String(job.id ?? crypto.randomUUID()),
+      id: String(job.jobId ?? crypto.randomUUID()),
       source: "Indeed",
-      title: job.title ?? "Untitled Job",
-      company: job.company_name ?? "Unknown Company",
+      title: job.jobTitle ?? "Untitled Job",
+      company: job.company ?? "Unknown Company",
       location: job.location ?? "Not specified",
-      description: job.description ?? "No description provided.",
-      url: job.url?.startsWith("http")
-        ? job.url
-        : `https://indeed.com/viewjob?jk=${job.id}`,
+      description: job.jobDescription ?? "No description provided.",
+      url: job.jobUrl?.startsWith("http")
+        ? job.jobUrl
+        : `https://indeed.com${job.jobUrl}`,
     }));
 
     return { jobs };
