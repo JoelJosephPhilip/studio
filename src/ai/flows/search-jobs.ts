@@ -41,43 +41,50 @@ const searchJobsFlow = ai.defineFlow(
     let lastError: any = null;
 
     while (attempts < maxAttempts) {
-        attempts++;
-        try {
-            const response = await fetch(url, options);
-            if (!response.ok) {
-                 if (response.status === 500 && attempts < maxAttempts) {
-                    console.warn(`Attempt ${attempts} failed with status 500. Retrying...`);
-                    lastError = new Error(`API request failed with status ${response.status}: ${await response.text()}`);
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // wait 1 second before retrying
-                    continue;
-                }
-                const errorBody = await response.text();
-                console.error(`API Error Response (Status: ${response.status}): ${errorBody}`);
-                throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-            }
-            
-            const data: any = await response.json();
-
-            // Normalize the API response to our Job schema
-            const jobs = data.hits.map((job: any) => ({
-                id: job.id,
-                source: 'Indeed',
-                title: job.title,
-                company: job.company_name,
-                location: job.location,
-                description: job.description,
-                url: job.url,
-            }));
-
-            return { jobs };
-
-        } catch (error: any) {
-            lastError = error;
-            console.error(`Attempt ${attempts} - Failed to fetch jobs:`, error);
+      attempts++;
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          const errorBody = await response.text();
+          // If it's a server error and we can still retry, log it and continue
+          if (response.status >= 500 && attempts < maxAttempts) {
+            console.warn(`Attempt ${attempts} failed with status ${response.status}. Retrying...`);
+            lastError = new Error(`API request failed with status ${response.status}: ${errorBody}`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // wait longer each time
+            continue; // This will trigger the next iteration of the while loop
+          }
+          // If it's not a server error or we are out of retries, throw the error
+          console.error(`API Error Response (Status: ${response.status}): ${errorBody}`);
+          throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
         }
+        
+        const data: any = await response.json();
+
+        // Normalize the API response to our Job schema
+        const jobs = data.hits.map((job: any) => ({
+          id: job.id,
+          source: 'Indeed',
+          title: job.title,
+          company: job.company_name,
+          location: job.location,
+          description: job.description,
+          url: job.url,
+        }));
+        
+        // If successful, return the data and exit the loop
+        return { jobs };
+
+      } catch (error: any) {
+        lastError = error;
+        console.error(`Attempt ${attempts} - An error occurred:`, error.message);
+        // If it's a network error or similar, and we can still retry
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+        }
+      }
     }
     
-    // If all attempts fail, throw the last captured error
-    throw new Error(`Failed to fetch jobs from the external API after ${maxAttempts} attempts. Reason: ${lastError?.message || 'Unknown error'}`);
+    // If the loop completes without returning, it means all attempts have failed.
+    throw new Error(`Failed to fetch jobs from the external API after ${maxAttempts} attempts. Last known error: ${lastError?.message || 'Unknown error'}`);
   }
 );
