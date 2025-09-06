@@ -9,7 +9,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { QuestionAnswerPairSchema, McqQuestionSchema } from './ai-interview-coach';
+import { QuestionAnswerPairSchema, McqQuestionSchema } from '@/ai/schemas/ai-interview-coach-schemas';
 
 export const GenerateMoreQuestionsInputSchema = z.object({
   resumeText: z.string().describe("The text content of the user's resume."),

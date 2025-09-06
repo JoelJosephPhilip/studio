@@ -39,8 +39,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { getResumes, type Resume } from '@/app/actions/resume-actions';
-import { generateInterviewPrepPack, type AiInterviewCoachOutput } from '@/ai/flows/ai-interview-coach';
-import { generateMoreQuestions, GenerateMoreQuestionsOutput } from '@/ai/flows/generate-more-questions';
+import { generateInterviewPrepPack } from '@/ai/flows/ai-interview-coach';
+import type { AiInterviewCoachOutput } from '@/ai/schemas/ai-interview-coach-schemas';
+import { generateMoreQuestions } from '@/ai/flows/generate-more-questions';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
