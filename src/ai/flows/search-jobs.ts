@@ -4,7 +4,6 @@
  * @fileOverview A Genkit flow for searching jobs using the Indeed API via RapidAPI.
  */
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
 import { SearchJobsInputSchema, SearchJobsOutputSchema, type SearchJobsInput, type SearchJobsOutput } from '@/ai/schemas/job-search-schemas';
 import fetch from 'node-fetch';
 
@@ -66,5 +65,3 @@ const searchJobsFlow = ai.defineFlow(
     }
   }
 );
-
-    
