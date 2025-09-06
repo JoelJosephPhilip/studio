@@ -55,10 +55,14 @@ const formSchema = z.object({
   resumeId: z.string().optional(),
   resumeFile: z.any().optional(),
   resumeText: z.string().optional(),
-  jobDescription: z.string().min(50, 'Please paste the full job description.'),
+  jobDescription: z.string().optional(),
+  jdFile: z.any().optional(),
 }).refine(data => data.resumeId || data.resumeFile || (data.resumeText && data.resumeText.length > 50), {
     message: "Please select, upload, or paste a resume.",
     path: ["resumeId"],
+}).refine(data => data.jdFile || (data.jobDescription && data.jobDescription.length > 50), {
+    message: "Please upload or paste a job description.",
+    path: ["jobDescription"],
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -67,8 +71,10 @@ export default function JdMatcherPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [analysisResult, setAnalysisResult] = useState<JdResumeSimilarityMatchingOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [jdFileName, setJdFileName] = useState<string | null>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
+  const jdFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
   const [user] = useAuthState(auth);
@@ -120,14 +126,24 @@ export default function JdMatcherPage() {
     }
   };
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       form.setValue('resumeFile', file);
       form.setValue('resumeId', undefined); // Clear selected resume
       form.setValue('resumeText', ''); // Clear pasted text
-      setFileName(file.name);
+      setResumeFileName(file.name);
       form.clearErrors('resumeId');
+    }
+  };
+  
+  const handleJdFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue('jdFile', file);
+      form.setValue('jobDescription', ''); // Clear pasted text
+      setJdFileName(file.name);
+      form.clearErrors('jobDescription');
     }
   };
 
@@ -150,15 +166,19 @@ export default function JdMatcherPage() {
                 return;
             }
             resumeText = selectedResume.content;
-        } else {
-            toast({ variant: 'destructive', title: 'No resume provided' });
-            setIsLoading(false);
-            return;
+        }
+
+        let jobDescriptionText = '';
+        if (values.jobDescription && values.jobDescription.length > 50) {
+            jobDescriptionText = values.jobDescription;
+        } else if (values.jdFile) {
+            const file = values.jdFile as File;
+            jobDescriptionText = await extractTextFromFile(file);
         }
 
       const result = await jdResumeSimilarityMatching({
         resumeText: resumeText,
-        jobDescriptionText: values.jobDescription,
+        jobDescriptionText: jobDescriptionText,
       });
       setAnalysisResult(result);
     } catch (error: any) {
@@ -190,7 +210,7 @@ export default function JdMatcherPage() {
                     <TabsTrigger value="select" onClick={() => {
                         form.setValue('resumeFile', undefined);
                         form.setValue('resumeText', '');
-                        setFileName(null);
+                        setResumeFileName(null);
                     }}>Select Saved</TabsTrigger>
                     <TabsTrigger value="upload" onClick={() => {
                         form.setValue('resumeId', undefined);
@@ -199,7 +219,7 @@ export default function JdMatcherPage() {
                     <TabsTrigger value="paste" onClick={() => {
                         form.setValue('resumeId', undefined);
                         form.setValue('resumeFile', undefined);
-                        setFileName(null);
+                        setResumeFileName(null);
                     }}>Paste Text</TabsTrigger>
                 </TabsList>
                 <TabsContent value="select" className="pt-4">
@@ -213,7 +233,7 @@ export default function JdMatcherPage() {
                             field.onChange(value);
                             form.setValue('resumeFile', undefined);
                             form.setValue('resumeText', '');
-                            setFileName(null);
+                            setResumeFileName(null);
                             form.clearErrors('resumeId');
                         }} defaultValue={field.value} disabled={resumes.length === 0}>
                           <FormControl>
@@ -246,18 +266,18 @@ export default function JdMatcherPage() {
                                 variant="outline"
                                 className="w-full justify-start text-left font-normal"
                                 disabled={isLoading}
-                                onClick={() => fileInputRef.current?.click()}
+                                onClick={() => resumeFileInputRef.current?.click()}
                               >
                                 <Upload className="mr-2 h-4 w-4" />
-                                {fileName || "Upload from Device"}
+                                {resumeFileName || "Upload from Device"}
                               </Button>
                           </div>
                         </FormControl>
                          <Input
                             type="file"
                             className="hidden"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
+                            ref={resumeFileInputRef}
+                            onChange={handleResumeFileChange}
                             accept=".pdf,.txt"
                           />
                         <FormMessage />
@@ -281,7 +301,7 @@ export default function JdMatcherPage() {
                                 field.onChange(e);
                                 form.setValue('resumeId', undefined);
                                 form.setValue('resumeFile', undefined);
-                                setFileName(null);
+                                setResumeFileName(null);
                                 form.clearErrors('resumeId');
                               }}
                             />
@@ -298,12 +318,39 @@ export default function JdMatcherPage() {
                 name="jobDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Paste Job Description</FormLabel>
+                    <div className="flex justify-between items-center">
+                      <FormLabel>Job Description</FormLabel>
+                       <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isLoading}
+                          onClick={() => jdFileInputRef.current?.click()}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload File
+                        </Button>
+                        <Input
+                          type="file"
+                          className="hidden"
+                          ref={jdFileInputRef}
+                          onChange={handleJdFileChange}
+                          accept=".pdf,.txt"
+                        />
+                    </div>
                     <FormControl>
                       <Textarea
-                        placeholder="Paste the full job description here..."
+                        placeholder="Paste the full job description here, or upload a file..."
                         className="min-h-[250px]"
                         {...field}
+                        value={jdFileName ? `File uploaded: ${jdFileName}`: field.value}
+                        readOnly={!!jdFileName}
+                        onChange={(e) => {
+                            field.onChange(e);
+                            form.setValue('jdFile', undefined);
+                            setJdFileName(null);
+                            form.clearErrors('jobDescription');
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
