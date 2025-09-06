@@ -1,14 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Search, Briefcase, ThumbsUp, ThumbsDown, Save, ExternalLink } from 'lucide-react';
+import { Loader2, Search, Briefcase, ThumbsUp, ThumbsDown, Save, ExternalLink, Upload } from 'lucide-react';
+import * as pdfjsLib from "pdfjs-dist";
 
 import {
   Card,
@@ -41,11 +42,26 @@ import { auth } from '@/lib/firebase';
 import { getResumes, type Resume, saveJob } from '@/app/actions/resume-actions';
 import { jdResumeSimilarityMatching, type JdResumeSimilarityMatchingOutput } from '@/ai/flows/jd-resume-similarity-matching';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+
+// Setup for PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+}
 
 const formSchema = z.object({
-  resumeId: z.string().min(1, 'Please select a resume.'),
+  resumeId: z.string().optional(),
+  resumeFile: z.any().optional(),
+  resumeText: z.string().optional(),
   role: z.string().min(2, 'Please enter a job role.'),
   location: z.string().min(2, 'Please enter a location.'),
+}).refine(data => data.resumeId || data.resumeFile || (data.resumeText && data.resumeText.length > 50), {
+    message: "Please select, upload, or paste a resume.",
+    path: ["resumeId"],
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
@@ -68,6 +84,8 @@ export default function JobSearchPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [enrichedJobs, setEnrichedJobs] = useState<EnrichedJob[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
   const [user] = useAuthState(auth);
@@ -77,6 +95,7 @@ export default function JobSearchPage() {
     defaultValues: {
       role: '',
       location: '',
+      resumeText: '',
     },
   });
 
@@ -101,22 +120,60 @@ export default function JobSearchPage() {
     }
   }, [userEmail, toast]);
 
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    if (file.type === 'application/pdf') {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      let text = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => ('str' in item ? item.str : '')).join(' ');
+      }
+      return text;
+    } else if (file.type === 'text/plain') {
+      return file.text();
+    } else {
+      throw new Error("Unsupported file type. Please upload a PDF or TXT file.");
+    }
+  };
+
+  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue('resumeFile', file);
+      form.setValue('resumeId', undefined); // Clear selected resume
+      form.setValue('resumeText', ''); // Clear pasted text
+      setResumeFileName(file.name);
+      form.clearErrors('resumeId');
+    }
+  };
+
   async function onSubmit(values: FormSchemaType) {
     setIsLoading(true);
     setEnrichedJobs([]);
     
-    const selectedResume = resumes.find(r => r.id === values.resumeId);
-    if (!selectedResume) {
-        toast({ variant: 'destructive', title: 'Resume not found' });
-        setIsLoading(false);
-        return;
-    }
-
+    let resumeText = '';
     try {
+        if (values.resumeText && values.resumeText.length > 50) {
+            resumeText = values.resumeText;
+        } else if (values.resumeFile) {
+            const file = values.resumeFile as File;
+            resumeText = await extractTextFromFile(file);
+        } else if (values.resumeId) {
+            const selectedResume = resumes.find(r => r.id === values.resumeId);
+            if (!selectedResume) {
+                toast({ variant: 'destructive', title: 'Resume not found' });
+                setIsLoading(false);
+                return;
+            }
+            resumeText = selectedResume.content;
+        }
+
         const jobsWithScores = await Promise.all(
             mockJobs.map(async (job) => {
                 const matchReport = await jdResumeSimilarityMatching({
-                    resumeText: selectedResume.content,
+                    resumeText: resumeText,
                     jobDescriptionText: `${job.title} at ${job.company}. ${job.description}`,
                 });
                 return { ...job, matchReport };
@@ -168,29 +225,112 @@ export default function JobSearchPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 md:space-y-0 md:flex md:gap-4 md:items-end">
-                <FormField
-                    control={form.control}
-                    name="resumeId"
-                    render={({ field }) => (
-                      <FormItem className="flex-grow">
-                        <FormLabel>Resume for Matching</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={resumes.length === 0}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={resumes.length > 0 ? 'Select a saved resume' : 'No resumes found'} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {resumes.map(resume => (
-                              <SelectItem key={resume.id} value={resume.id}>{resume.title}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                />
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className='space-y-2'>
+                <FormLabel>Resume for Matching</FormLabel>
+                <Tabs defaultValue="select" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="select" onClick={() => {
+                            form.setValue('resumeFile', undefined);
+                            form.setValue('resumeText', '');
+                            setResumeFileName(null);
+                        }}>Select Saved</TabsTrigger>
+                        <TabsTrigger value="upload" onClick={() => {
+                            form.setValue('resumeId', undefined);
+                            form.setValue('resumeText', '');
+                        }}>Upload File</TabsTrigger>
+                        <TabsTrigger value="paste" onClick={() => {
+                            form.setValue('resumeId', undefined);
+                            form.setValue('resumeFile', undefined);
+                            setResumeFileName(null);
+                        }}>Paste Text</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="select" className="pt-4">
+                      <FormField
+                        control={form.control}
+                        name="resumeId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <Select onValueChange={(value) => {
+                                field.onChange(value);
+                                form.setValue('resumeFile', undefined);
+                                form.setValue('resumeText', '');
+                                setResumeFileName(null);
+                                form.clearErrors('resumeId');
+                            }} defaultValue={field.value} disabled={resumes.length === 0}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={resumes.length > 0 ? "Select a saved resume" : "No resumes found"} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {resumes.map(resume => (
+                                  <SelectItem key={resume.id} value={resume.id}>{resume.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    </TabsContent>
+                    <TabsContent value="upload" className="pt-4">
+                      <FormField
+                        control={form.control}
+                        name="resumeFile"
+                        render={() => (
+                          <FormItem>
+                            <FormControl>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full justify-start text-left font-normal"
+                                    disabled={isLoading}
+                                    onClick={() => resumeFileInputRef.current?.click()}
+                                  >
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    {resumeFileName || "Upload PDF or TXT File"}
+                                </Button>
+                            </FormControl>
+                             <Input
+                                type="file"
+                                className="hidden"
+                                ref={resumeFileInputRef}
+                                onChange={handleResumeFileChange}
+                                accept=".pdf,.txt"
+                              />
+                          </FormItem>
+                        )}
+                      />
+                    </TabsContent>
+                    <TabsContent value="paste" className="pt-4">
+                      <FormField
+                          control={form.control}
+                          name="resumeText"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Paste the full text of your resume here..."
+                                  className="min-h-[150px]"
+                                  {...field}
+                                  onChange={(e) => {
+                                    field.onChange(e);
+                                    form.setValue('resumeId', undefined);
+                                    form.setValue('resumeFile', undefined);
+                                    setResumeFileName(null);
+                                    form.clearErrors('resumeId');
+                                  }}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                    </TabsContent>
+                  </Tabs>
+                  <FormMessage>{form.formState.errors.resumeId?.message}</FormMessage>
+                </div>
+              
+              <div className="flex flex-col md:flex-row md:gap-4 md:items-end">
                  <FormField
                     control={form.control}
                     name="role"
@@ -208,7 +348,7 @@ export default function JobSearchPage() {
                     control={form.control}
                     name="location"
                     render={({ field }) => (
-                      <FormItem className="flex-grow">
+                      <FormItem className="flex-grow mt-4 md:mt-0">
                         <FormLabel>Location</FormLabel>
                         <FormControl>
                           <Input placeholder="e.g., Remote" {...field} />
@@ -217,10 +357,11 @@ export default function JobSearchPage() {
                       </FormItem>
                     )}
                 />
-              <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
-                {isLoading ? <Loader2 className="animate-spin" /> : <Search />}
-                <span className="ml-2">Search Jobs</span>
-              </Button>
+                <Button type="submit" disabled={isLoading} className="w-full md:w-auto mt-4 md:mt-0">
+                    {isLoading ? <Loader2 className="animate-spin" /> : <Search />}
+                    <span className="ml-2">Search Jobs</span>
+                </Button>
+              </div>
             </form>
           </Form>
         </CardContent>
