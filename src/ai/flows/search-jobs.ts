@@ -1,12 +1,11 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow for searching jobs using the Indeed Scraper API via RapidAPI.
+ * @fileOverview A Genkit flow for searching jobs using the SerpApi Google Jobs API.
  */
 import { ai } from '@/ai/genkit';
 import { SearchJobsInputSchema, SearchJobsOutputSchema, type SearchJobsInput, type SearchJobsOutput } from '@/ai/schemas/job-search-schemas';
 import fetch from 'node-fetch';
-
 
 export async function searchJobs(input: SearchJobsInput): Promise<SearchJobsOutput> {
   return searchJobsFlow(input);
@@ -20,50 +19,38 @@ const searchJobsFlow = ai.defineFlow(
   },
   async (input) => {
     const { query, location } = input;
-    const apiKey = process.env.RAPIDAPI_KEY;
+    const apiKey = process.env.SERPAPI_KEY;
 
     if (!apiKey) {
-      throw new Error("RAPIDAPI_KEY is not set in the environment variables.");
+      throw new Error("SERPAPI_KEY is not set in the environment variables.");
     }
     
-    const url = 'https://indeed-scraper-api.p.rapidapi.com/api/job';
+    const url = new URL('https://serpapi.com/search.json');
+    url.searchParams.append('engine', 'google_jobs');
+    url.searchParams.append('q', query);
+    url.searchParams.append('location', location);
+    url.searchParams.append('api_key', apiKey);
 
     const options = {
-      method: 'POST',
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'indeed-scraper-api.p.rapidapi.com'
-      },
-      body: JSON.stringify({
-        scraper: {
-          maxRows: 15,
-          query: query,
-          location: location,
-          jobType: 'fulltime',
-          radius: '50',
-          sort: 'relevance',
-          fromDays: '7',
-          country: 'us'
-        }
-      })
+      }
     };
 
-    const response = await fetch(url, options);
+    const response = await fetch(url.toString(), options);
 
     if (!response.ok) {
       const body = await response.text();
-      console.error("Indeed API raw error response:", body);
+      console.error("SerpApi raw error response:", body);
       throw new Error(
-        `Indeed API request failed. Status: ${response.status}, Body: ${body}`
+        `SerpApi request failed. Status: ${response.status}, Body: ${body}`
       );
     }
 
     const data: any = await response.json();
-    console.log("Indeed API raw response:", JSON.stringify(data, null, 2));
-
-    // Defensively find the array of jobs, whether it's the root response or nested.
-    const results = Array.isArray(data) ? data : data.results || data.hits || [];
+    
+    const results = data.jobs_results || [];
     
     if (!Array.isArray(results)) {
         console.error("API response did not contain a valid jobs array. Response:", data);
@@ -71,15 +58,13 @@ const searchJobsFlow = ai.defineFlow(
     }
 
     const jobs = results.map((job: any) => ({
-      id: String(job.jobId ?? crypto.randomUUID()),
-      source: "Indeed",
-      title: job.jobTitle ?? "Untitled Job",
-      company: job.company ?? "Unknown Company",
+      id: String(job.job_id ?? crypto.randomUUID()),
+      source: "Google Jobs via SerpApi",
+      title: job.title ?? "Untitled Job",
+      company: job.company_name ?? "Unknown Company",
       location: job.location ?? "Not specified",
-      description: job.jobDescription ?? "No description provided.",
-      url: job.jobUrl?.startsWith("http")
-        ? job.jobUrl
-        : `https://indeed.com${job.jobUrl}`,
+      description: job.description ?? "No description provided.",
+      url: job.related_links?.[0]?.link ?? `https://www.google.com/search?q=${encodeURIComponent(job.title + " " + job.company_name)}`,
     }));
 
     return { jobs };
