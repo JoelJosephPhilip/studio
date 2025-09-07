@@ -5,11 +5,9 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useSession } from "next-auth/react";
-import { useAuthState } from "react-firebase-hooks/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Upload, FileText, Download, Trash2, MoreHorizontal, AlertTriangle, Save } from "lucide-react";
-import jsPDF from 'jspdf';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 import {
   Card,
@@ -33,7 +31,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
 import { getResumes, deleteResume, savePastedResume, uploadAndSaveResume, type Resume } from "@/app/actions/resume-actions";
 
 const formSchema = z.object({
@@ -44,48 +41,54 @@ const formSchema = z.object({
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
-function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => void }) {
+function ResumeList({ resumes, onAction, onDownload }: { resumes: Resume[], onAction: () => void, onDownload: (path: string, title: string) => void }) {
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+  const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { toast } = useToast();
-  const { data: session } = useSession();
-  const [user] = useAuthState(auth);
-  const userEmail = session?.user?.email || user?.email;
 
-  const downloadResumeAsPdf = (resume: Resume) => {
-    const pdf = new jsPDF();
-    const lines = pdf.splitTextToSize(resume.content, 180);
-    pdf.text(lines, 15, 15);
-    pdf.save(`${resume.title.replace(/\s+/g, '_')}.pdf`);
-  };
-
-  const handleDeleteClick = (resumeId: string) => {
-    setSelectedResumeId(resumeId);
+  const handleDeleteClick = (resume: Resume) => {
+    setSelectedResume(resume);
     setIsAlertOpen(true);
   };
+  
+  const downloadResumeAsText = (resume: Resume) => {
+    if (!resume.text_content) {
+      toast({ variant: 'destructive', title: 'No text content available.'});
+      return;
+    };
+    const blob = new Blob([resume.text_content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${resume.title.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
 
   const confirmDelete = async () => {
-    if (!selectedResumeId || !userEmail) return;
+    if (!selectedResume) return;
     setIsDeleting(true);
     try {
-      await deleteResume({ userEmail: userEmail, resumeId: selectedResumeId });
+      await deleteResume({ resumeId: selectedResume.id, storagePath: selectedResume.storage_path });
       toast({
         title: "Resume Deleted",
         description: "The resume has been successfully removed.",
       });
       onAction(); // Trigger refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting resume:", error);
       toast({
         variant: "destructive",
         title: "Deletion Failed",
-        description: "Could not delete the resume. Please try again.",
+        description: error.message || "Could not delete the resume. Please try again.",
       });
     } finally {
       setIsDeleting(false);
       setIsAlertOpen(false);
-      setSelectedResumeId(null);
+      setSelectedResume(null);
     }
   };
 
@@ -105,7 +108,7 @@ function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => 
             <div>
               <p className="font-semibold">{resume.title}</p>
               <p className="text-sm text-muted-foreground">
-                Last updated: {new Date(resume.updatedAt).toLocaleDateString()}
+                Last updated: {new Date(resume.updated_at).toLocaleDateString()}
               </p>
             </div>
             <DropdownMenu>
@@ -115,11 +118,17 @@ function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => downloadResumeAsPdf(resume)}>
+                <DropdownMenuItem onClick={() => {
+                  if(resume.storage_path) {
+                    onDownload(resume.storage_path, resume.title)
+                  } else {
+                    downloadResumeAsText(resume)
+                  }
+                }}>
                   <Download className="mr-2 h-4 w-4" />
-                  <span>Download as PDF</span>
+                  <span>Download</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDeleteClick(resume.id)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                <DropdownMenuItem onClick={() => handleDeleteClick(resume)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                   <Trash2 className="mr-2 h-4 w-4" />
                   <span>Delete</span>
                 </DropdownMenuItem>
@@ -133,7 +142,7 @@ function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => 
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete your resume from our servers.
+                This action cannot be undone. This will permanently delete your resume.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -157,41 +166,44 @@ export default function ResumeStorePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { data: session, status: sessionStatus } = useSession();
-  const [user, firebaseLoading] = useAuthState(auth);
+  const supabase = createClientComponentClient();
+  const [user, setUser] = useState<any>(null);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
     defaultValues: { title: "", resumeText: "" },
   });
+  
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+      if (currentUser) {
+        await fetchResumes();
+      } else {
+        setResumes([]);
+        setIsLoading(false);
+      }
+    });
 
-  const userEmail = session?.user?.email || user?.email;
+    return () => {
+      subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase.auth]);
 
   const fetchResumes = async () => {
-    if (!userEmail) {
-      setIsLoading(false);
-      return;
-    }
     setIsLoading(true);
     try {
-      const fetchedResumes = await getResumes({ userEmail });
+      const fetchedResumes = await getResumes();
       setResumes(fetchedResumes);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch resumes:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not fetch your saved resumes." });
+      toast({ variant: "destructive", title: "Error", description: error.message || "Could not fetch your saved resumes." });
     } finally {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    const isUserLoading = firebaseLoading || sessionStatus === 'loading';
-    if (!isUserLoading) {
-      fetchResumes();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userEmail, firebaseLoading, sessionStatus]);
-
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -200,18 +212,9 @@ export default function ResumeStorePage() {
       setFileName(file.name);
     }
   };
-  
-  const fileToDataUri = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
 
   async function onSubmit(values: FormSchemaType) {
-    if (!userEmail) {
+    if (!user) {
       toast({ variant: "destructive", title: "Not Authenticated", description: "You must be signed in to save a resume." });
       return;
     }
@@ -220,20 +223,18 @@ export default function ResumeStorePage() {
     try {
       if (values.resumeFile) {
         const file = values.resumeFile as File;
-        if (file.size > 2 * 1024 * 1024) { // 2MB limit
-          toast({ variant: "destructive", title: "File too large", description: "Please upload a file smaller than 2MB." });
-          setIsSubmitting(false);
-          return;
+        const validTypes = ['application/pdf', 'text/plain'];
+        if (!validTypes.includes(file.type)) {
+            toast({ variant: 'destructive', title: 'Invalid File Type', description: 'Please upload a PDF or TXT file.' });
+            setIsSubmitting(false);
+            return;
         }
-        const fileDataUri = await fileToDataUri(file);
         await uploadAndSaveResume({
-          userEmail,
           title: values.title,
-          fileDataUri,
+          file,
         });
       } else if (values.resumeText && values.resumeText.length > 50) {
         await savePastedResume({
-          userEmail,
           title: values.title,
           resumeText: values.resumeText,
         });
@@ -258,11 +259,28 @@ export default function ResumeStorePage() {
     }
   }
 
+  const handleDownload = async (path: string, title: string) => {
+    const { data, error } = await supabase.storage.from('resumes').download(path);
+    if (error) {
+      console.error("Error downloading file:", error);
+      toast({ variant: 'destructive', title: 'Download Failed', description: error.message });
+      return;
+    }
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = title.replace(/\s+/g, '_') + '.' + path.split('.').pop();
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   const renderResumeList = () => {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!userEmail) {
+    if (!user) {
       return (
         <div className="text-center p-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -280,7 +298,7 @@ export default function ResumeStorePage() {
         </div>
       );
     }
-    return <ResumeList resumes={resumes} onAction={fetchResumes} />;
+    return <ResumeList resumes={resumes} onAction={fetchResumes} onDownload={handleDownload} />;
   };
 
   return (
@@ -367,7 +385,7 @@ export default function ResumeStorePage() {
                     />
                 </TabsContent>
               </Tabs>
-              <Button type="submit" disabled={isSubmitting} className="w-full">
+              <Button type="submit" disabled={isSubmitting || !user} className="w-full">
                 {isSubmitting ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
                 ) : (

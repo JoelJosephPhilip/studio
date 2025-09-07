@@ -1,4 +1,6 @@
 
+// This file is no longer used for resume storage, but may be used by other features.
+// Keeping it to avoid breaking other parts of the application.
 import * as admin from 'firebase-admin';
 
 let db: admin.firestore.Firestore | null = null;
