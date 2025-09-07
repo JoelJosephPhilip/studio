@@ -27,7 +27,7 @@ import ClassicTemplate from "./templates/classic";
 import ModernTemplate from "./templates/modern";
 import CreativeTemplate from "./templates/creative";
 import { useToast } from "@/hooks/use-toast";
-import { saveResumeToDb } from "@/app/actions/resume-actions";
+import { savePastedResume } from "@/app/actions/resume-actions";
 import { auth } from "@/lib/firebase";
 
 const personalDetailsSchema = z.object({
@@ -310,7 +310,7 @@ export default function ResumeBuilderPage() {
         ${generationResult.resume.skills.join(', ')}
         `;
 
-        await saveResumeToDb({
+        await savePastedResume({
             userEmail: userEmail,
             resumeText: resumeText,
             title: `${generationResult.resume.personalDetails.fullName}'s Resume`
