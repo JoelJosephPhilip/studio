@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -14,6 +15,7 @@ import {
   Search,
   Settings,
   Wand,
+  Archive,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -21,6 +23,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
     { href: '/dashboard/resume-builder', label: 'Resume Builder', icon: FileText },
+    { href: '/dashboard/resume-store', label: 'Resume Store', icon: Archive },
     { href: '/dashboard/cover-letter', label: 'Cover Letter', icon: Mail },
     { href: '/dashboard/ats-analyzer', label: 'ATS Analyzer', icon: BarChart3 },
     { href: '/dashboard/fix-my-resume', label: 'Fix My Resume', icon: Wand },
