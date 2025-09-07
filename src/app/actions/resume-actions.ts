@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
+import * as pdfjsLib from "pdfjs-dist";
 
 // --- Type Definitions for Function Outputs ---
 
@@ -23,12 +24,20 @@ export type Resume = {
 
 // --- Schemas for Resume Actions ---
 
-const SaveResumeToDbInputSchema = z.object({
+const SavePastedResumeInputSchema = z.object({
   userEmail: z.string().email("A valid user email is required."),
-  title: z.string().describe('The title of the resume.'),
-  resumeText: z.string().describe('The full text content of the resume.'),
+  title: z.string().min(2, 'A title is required.'),
+  resumeText: z.string().min(50, 'Resume content is too short.'),
 });
-export type SaveResumeToDbInput = z.infer<typeof SaveResumeToDbInputSchema>;
+export type SavePastedResumeInput = z.infer<typeof SavePastedResumeInputSchema>;
+
+const UploadAndSaveResumeInputSchema = z.object({
+  userEmail: z.string().email("A valid user email is required."),
+  title: z.string().min(2, 'A title is required.'),
+  fileDataUri: z.string().describe("A PDF or TXT file as a data URI."),
+});
+export type UploadAndSaveResumeInput = z.infer<typeof UploadAndSaveResumeInputSchema>;
+
 
 const GetResumesInputSchema = z.object({
   userEmail: z.string().email("A valid user email is required."),
@@ -70,31 +79,98 @@ export type SaveJobInput = z.infer<typeof SaveJobInputSchema>;
 // --- Server Actions ---
 
 /**
- * Saves resume data to the user's document in Firestore.
+ * Saves resume data from pasted text to the user's document in Firestore.
  */
-export async function saveResumeToDb(input: SaveResumeToDbInput): Promise<{ resumeId: string }> {
+export async function savePastedResume(input: SavePastedResumeInput): Promise<{ resumeId: string }> {
   try {
     if (!db) {
-        console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
-        return { resumeId: 'dev-mode-no-db' };
+        throw new Error('Firebase Admin SDK not initialized.');
     }
       
-    const { userEmail, title, resumeText } = SaveResumeToDbInputSchema.parse(input);
+    const { userEmail, title, resumeText } = SavePastedResumeInputSchema.parse(input);
     const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
     
     const docRef = await resumesCollectionRef.add({
         title: title,
         content: resumeText,
+        fileType: 'text',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     return { resumeId: docRef.id };
   } catch (error: any) {
-      console.error("Firestore save error in saveResumeToDb:", error.message);
-      throw new Error(`Failed to save resume to database: ${error.message}`);
+      console.error("Firestore save error in savePastedResume:", error.message);
+      throw new Error(`Failed to save resume: ${error.message}`);
   }
 }
+
+/**
+ * Extracts text from a file buffer and saves the resume.
+ */
+async function extractTextAndSave(buffer: Buffer, mimeType: string, title: string, userEmail: string): Promise<string> {
+    let textContent = '';
+    let fileType = 'text';
+
+    if (mimeType === 'application/pdf') {
+        fileType = 'pdf';
+        // When running on the server, we need a different worker source.
+        if (pdfjsLib.GlobalWorkerOptions.workerSrc.includes('mjs')) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        }
+        const pdf = await pdfjsLib.getDocument(buffer).promise;
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            textContent += content.items.map(item => ('str' in item ? item.str : '')).join(' ');
+        }
+    } else if (mimeType === 'text/plain') {
+        textContent = buffer.toString('utf-8');
+    } else {
+        throw new Error('Unsupported file type. Please upload a PDF or TXT file.');
+    }
+
+    if (!db) {
+        throw new Error('Firebase Admin SDK not initialized.');
+    }
+
+    const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
+    const docRef = await resumesCollectionRef.add({
+        title,
+        content: textContent,
+        fileType,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+}
+
+
+/**
+ * Saves an uploaded resume file to Firestore.
+ */
+export async function uploadAndSaveResume(input: UploadAndSaveResumeInput): Promise<{ resumeId: string }> {
+    try {
+        const { userEmail, title, fileDataUri } = UploadAndSaveResumeInputSchema.parse(input);
+        
+        const matches = fileDataUri.match(/^data:(.+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            throw new Error('Invalid Data URI format.');
+        }
+
+        const mimeType = matches[1];
+        const base64Data = matches[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        const resumeId = await extractTextAndSave(buffer, mimeType, title, userEmail);
+
+        return { resumeId };
+    } catch (error: any) {
+        console.error("Error in uploadAndSaveResume:", error.message);
+        throw new Error(`Failed to upload resume: ${error.message}`);
+    }
+}
+
 
 /**
  * Fetches all resumes for a given user.
