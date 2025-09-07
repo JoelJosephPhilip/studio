@@ -94,7 +94,7 @@ export default function JobSearchPage() {
     if (userEmail) {
       const fetchResumes = async () => {
         try {
-          const userResumes = await getResumes({ userEmail });
+          const userResumes = await getResumes();
           setResumes(userResumes);
         } catch (error) {
           console.error('Failed to fetch resumes:', error);
@@ -151,12 +151,18 @@ export default function JobSearchPage() {
             resumeText = await extractTextFromFile(file);
         } else if (values.resumeId) {
             const selectedResume = resumes.find(r => r.id === values.resumeId);
-            if (!selectedResume) {
-                toast({ variant: 'destructive', title: 'Resume not found' });
+            if (!selectedResume || !selectedResume.text_content) {
+                toast({ variant: 'destructive', title: 'Resume content not found', description: "Selected resume does not have text content available for matching. Please upload or paste it." });
                 setIsLoading(false);
                 return;
             }
-            resumeText = selectedResume.content;
+            resumeText = selectedResume.text_content;
+        }
+
+        if (!resumeText) {
+             toast({ variant: 'destructive', title: 'Resume content not found', description: "Please select, upload or paste a resume with content." });
+             setIsLoading(false);
+             return;
         }
 
         const jobResults = await searchJobs({
@@ -195,7 +201,6 @@ export default function JobSearchPage() {
 
     try {
         await saveJob({
-            userEmail,
             jobData: {
                 source: job.source,
                 title: job.title,
@@ -206,9 +211,9 @@ export default function JobSearchPage() {
             matchReport: job.matchReport,
         });
         toast({ title: "Job Saved!", description: `${job.title} at ${job.company} has been saved.` });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving job:", error);
-        toast({ variant: "destructive", title: "Save Failed", description: "Could not save the job." });
+        toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the job." });
     } finally {
         setEnrichedJobs(jobs => jobs.map(j => j.id === job.id ? { ...j, isSaving: false } : j));
     }

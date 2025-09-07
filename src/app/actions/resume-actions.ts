@@ -10,6 +10,7 @@ import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import {v4 as uuidv4} from 'uuid';
 
+
 export type Resume = {
   id: string;
   title: string;
@@ -19,6 +20,30 @@ export type Resume = {
   created_at: string;
   updated_at: string;
 };
+
+// --- Schemas for Job Actions ---
+
+const MatchReportSchema = z.object({
+    score: z.number(),
+    matches: z.array(z.string()),
+    gaps: z.array(z.string()),
+    summary: z.string(),
+});
+
+const JobDataSchema = z.object({
+    source: z.string(),
+    title: z.string(),
+    company: z.string(),
+    location: z.string(),
+    url: z.string().url(),
+});
+
+const SaveJobInputSchema = z.object({
+  jobData: JobDataSchema,
+  matchReport: MatchReportSchema,
+});
+export type SaveJobInput = z.infer<typeof SaveJobInputSchema>;
+
 
 // --- Server Actions ---
 
@@ -162,4 +187,39 @@ export async function deleteResume(input: DeleteResumeInput): Promise<{ success:
   }
 
   return { success: true };
+}
+
+
+/**
+ * Saves a job and its match report to the user's document in Supabase.
+ */
+export async function saveJob(input: SaveJobInput): Promise<{ jobId: string }> {
+  const supabase = createServerActionClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('You must be logged in to save a job.');
+  }
+
+  const { jobData, matchReport } = SaveJobInputSchema.parse(input);
+
+  const { data, error } = await supabase
+    .from('saved_jobs')
+    .insert({
+      user_id: user.id,
+      ...jobData,
+      match_report: matchReport,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('Supabase save job error:', error.message);
+    // You might want to check for specific error codes, e.g., if 'saved_jobs' table doesn't exist
+    if (error.code === '42P01') { // 'undefined_table'
+        throw new Error("The 'saved_jobs' table does not exist. Please create it in your Supabase project.");
+    }
+    throw new Error(`Failed to save job: ${error.message}`);
+  }
+
+  return { jobId: data.id };
 }
