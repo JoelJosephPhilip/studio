@@ -32,7 +32,7 @@ export function HeaderActions() {
       await signOut({ callbackUrl: '/' });
     } else if (user) {
       await auth.signOut();
-      // The redirect to '/' can be handled globally or in a useeffect on a higher component
+      window.location.href = '/';
     }
   };
 
