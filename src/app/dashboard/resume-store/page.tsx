@@ -32,6 +32,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { getResumes, deleteResume, savePastedResume, uploadAndSaveResume, type Resume } from "@/app/actions/resume-actions";
+import { useSession } from "next-auth/react";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/firebase";
 
 const formSchema = z.object({
   title: z.string().min(2, 'A title is required for your resume.'),
@@ -167,30 +170,11 @@ export default function ResumeStorePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const supabase = createClientComponentClient();
-  const [user, setUser] = useState<any>(null);
-
-  const form = useForm<FormSchemaType>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { title: "", resumeText: "" },
-  });
   
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const currentUser = session?.user || null;
-      setUser(currentUser);
-      if (currentUser) {
-        await fetchResumes();
-      } else {
-        setResumes([]);
-        setIsLoading(false);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase.auth]);
+  const { data: session, status: sessionStatus } = useSession();
+  const [user, firebaseLoading] = useAuthState(auth);
+  
+  const currentUser = user || session?.user;
 
   const fetchResumes = async () => {
     setIsLoading(true);
@@ -205,6 +189,17 @@ export default function ResumeStorePage() {
     }
   };
 
+  useEffect(() => {
+    const isUserLoading = firebaseLoading || sessionStatus === 'loading';
+    if (!isUserLoading && currentUser) {
+      fetchResumes();
+    } else if (!isUserLoading && !currentUser) {
+      setIsLoading(false);
+      setResumes([]);
+    }
+  }, [currentUser, firebaseLoading, sessionStatus]);
+
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -213,8 +208,13 @@ export default function ResumeStorePage() {
     }
   };
 
+  const form = useForm<FormSchemaType>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { title: "", resumeText: "" },
+  });
+
   async function onSubmit(values: FormSchemaType) {
-    if (!user) {
+    if (!currentUser) {
       toast({ variant: "destructive", title: "Not Authenticated", description: "You must be signed in to save a resume." });
       return;
     }
@@ -280,7 +280,7 @@ export default function ResumeStorePage() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!user) {
+    if (!currentUser) {
       return (
         <div className="text-center p-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -385,7 +385,7 @@ export default function ResumeStorePage() {
                     />
                 </TabsContent>
               </Tabs>
-              <Button type="submit" disabled={isSubmitting || !user} className="w-full">
+              <Button type="submit" disabled={isSubmitting || !currentUser} className="w-full">
                 {isSubmitting ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
                 ) : (
