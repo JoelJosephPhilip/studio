@@ -114,7 +114,7 @@ async function extractTextAndSave(buffer: Buffer, mimeType: string, title: strin
 
     if (mimeType === 'application/pdf') {
         fileType = 'pdf';
-        const pdf = await pdfjsLib.getDocument(buffer).promise;
+        const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
