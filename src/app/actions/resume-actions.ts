@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 
 // --- Type Definitions for Function Outputs ---
 
@@ -114,10 +114,6 @@ async function extractTextAndSave(buffer: Buffer, mimeType: string, title: strin
 
     if (mimeType === 'application/pdf') {
         fileType = 'pdf';
-        // When running on the server, we need a different worker source.
-        if (!pdfjsLib.GlobalWorkerOptions.workerSrc || pdfjsLib.GlobalWorkerOptions.workerSrc.includes('mjs')) {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-        }
         const pdf = await pdfjsLib.getDocument(buffer).promise;
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);

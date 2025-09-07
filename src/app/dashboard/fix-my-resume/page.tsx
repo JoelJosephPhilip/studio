@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand, Save } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 import jsPDF from "jspdf";
 import { useSession } from "next-auth/react";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -32,16 +32,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
-import { saveResumeToDb } from "@/app/actions/resume-actions";
+import { savePastedResume } from "@/app/actions/resume-actions";
 import { auth } from "@/lib/firebase";
-
-// Setup for PDF.js worker - updated for Next.js compatibility
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).toString();
-}
 
 const formSchema = z.object({
   resumeFile: z.any().optional(),
@@ -191,7 +183,7 @@ export default function FixMyResumePage() {
     
     setIsSaving(true);
     try {
-        await saveResumeToDb({
+        await savePastedResume({
             userEmail: userEmail,
             resumeText: analysisResult.improvedResumeText,
             title: `Improved Resume - ${new Date().toLocaleDateString()}`
@@ -360,5 +352,3 @@ export default function FixMyResumePage() {
     </div>
   )
 }
-
-    
