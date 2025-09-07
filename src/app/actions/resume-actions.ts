@@ -115,7 +115,7 @@ async function extractTextAndSave(buffer: Buffer, mimeType: string, title: strin
     if (mimeType === 'application/pdf') {
         fileType = 'pdf';
         // When running on the server, we need a different worker source.
-        if (pdfjsLib.GlobalWorkerOptions.workerSrc.includes('mjs')) {
+        if (!pdfjsLib.GlobalWorkerOptions.workerSrc || pdfjsLib.GlobalWorkerOptions.workerSrc.includes('mjs')) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
         }
         const pdf = await pdfjsLib.getDocument(buffer).promise;
