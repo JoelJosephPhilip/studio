@@ -171,7 +171,15 @@ export async function getResumes(): Promise<Resume[]> {
   if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error("Supabase URL or Anon Key is not defined.");
   }
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const cookieStore = cookies();
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value
+      },
+    },
+  });
+  
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {

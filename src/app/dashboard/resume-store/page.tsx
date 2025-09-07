@@ -191,14 +191,13 @@ export default function ResumeStorePage() {
     
     setIsUserLoggedIn(loggedIn);
 
-    if (!isUserLoading) {
-      if (loggedIn) {
+    if (!isUserLoading && loggedIn) {
         fetchResumes();
-      } else {
+    } else if (!isUserLoading && !loggedIn) {
         setIsLoading(false);
         setResumes([]);
-      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, session, firebaseLoading, sessionStatus]);
 
 
@@ -394,5 +393,3 @@ export default function ResumeStorePage() {
     </div>
   );
 }
-
-    
