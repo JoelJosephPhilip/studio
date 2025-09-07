@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import {v4 as uuidv4} from 'uuid';
 
@@ -26,12 +26,14 @@ export type Resume = {
 const SavePastedResumeInputSchema = z.object({
   title: z.string().min(2, 'A title is required.'),
   resumeText: z.string().min(50, 'Resume content is too short.'),
+  accessToken: z.string(),
 });
 export type SavePastedResumeInput = z.infer<typeof SavePastedResumeInputSchema>;
 
 const UploadAndSaveResumeInputSchema = z.object({
   title: z.string().min(2, 'A title is required.'),
   file: z.instanceof(File),
+  accessToken: z.string(),
 });
 export type UploadAndSaveResumeInput = z.infer<typeof UploadAndSaveResumeInputSchema>;
 
@@ -39,6 +41,7 @@ export type UploadAndSaveResumeInput = z.infer<typeof UploadAndSaveResumeInputSc
 const DeleteResumeInputSchema = z.object({
   resumeId: z.string().describe("The ID of the resume to delete."),
   storagePath: z.string().optional().nullable(),
+  accessToken: z.string(),
 });
 export type DeleteResumeInput = z.infer<typeof DeleteResumeInputSchema>;
 
@@ -63,6 +66,7 @@ const JobDataSchema = z.object({
 const SaveJobInputSchema = z.object({
   jobData: JobDataSchema,
   matchReport: MatchReportSchema,
+  accessToken: z.string(),
 });
 export type SaveJobInput = z.infer<typeof SaveJobInputSchema>;
 
@@ -73,14 +77,13 @@ export type SaveJobInput = z.infer<typeof SaveJobInputSchema>;
  * Saves resume data from pasted text to the user's document in Supabase.
  */
 export async function savePastedResume(input: SavePastedResumeInput): Promise<{ resumeId: string }> {
-  const supabase = createServerActionClient({ cookies });
-  const { data: { user } } = await supabase.auth.getUser();
+  const { title, resumeText, accessToken } = SavePastedResumeInputSchema.parse(input);
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+  const { data: { user } } = await supabase.auth.getUser(accessToken);
 
   if (!user) {
     throw new Error('You must be logged in to save a resume.');
   }
-  
-  const { title, resumeText } = SavePastedResumeInputSchema.parse(input);
   
   const { data, error } = await supabase
     .from('resumes')
@@ -105,14 +108,13 @@ export async function savePastedResume(input: SavePastedResumeInput): Promise<{ 
  * Saves an uploaded resume file to Supabase.
  */
 export async function uploadAndSaveResume(formData: FormData): Promise<{ resumeId: string }> {
-    const supabase = createServerActionClient({ cookies });
-    const { data: { user } } = await supabase.auth.getUser();
+    const { title, file, accessToken } = Object.fromEntries(formData.entries()) as {title: string, file: File, accessToken: string};
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const { data: { user } } = await supabase.auth.getUser(accessToken);
 
     if (!user) {
         throw new Error('You must be logged in to upload a resume.');
     }
-
-    const { title, file } = Object.fromEntries(formData.entries()) as {title: string, file: File};
     
     if (!file || file.size === 0) {
         throw new Error('No file provided or file is empty.');
@@ -164,11 +166,21 @@ export async function uploadAndSaveResume(formData: FormData): Promise<{ resumeI
  * Fetches all resumes for a given user.
  */
 export async function getResumes(): Promise<Resume[]> {
-  const supabase = createServerActionClient({ cookies });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase URL or Anon Key is not defined.");
+  }
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    return [];
+  }
   const { data: { user } } = await supabase.auth.getUser();
 
+
   if (!user) {
-    console.warn('User not authenticated. Skipping DB operation.');
     return [];
   }
       
@@ -191,15 +203,15 @@ export async function getResumes(): Promise<Resume[]> {
  * Deletes a specific resume for a given user.
  */
 export async function deleteResume(input: DeleteResumeInput): Promise<{ success: boolean }> {
-  const supabase = createServerActionClient({ cookies });
-  const { data: { user } } = await supabase.auth.getUser();
+  const { resumeId, storagePath, accessToken } = DeleteResumeInputSchema.parse(input);
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+  const { data: { user } } = await supabase.auth.getUser(accessToken);
+
 
   if (!user) {
     throw new Error('You must be logged in to delete a resume.');
   }
       
-  const { resumeId, storagePath } = DeleteResumeInputSchema.parse(input);
-
   if (storagePath) {
     const { error: storageError } = await supabase.storage.from('resumes').remove([storagePath]);
     if (storageError) {
@@ -222,15 +234,14 @@ export async function deleteResume(input: DeleteResumeInput): Promise<{ success:
  * Saves a job and its match report to the user's document in Supabase.
  */
 export async function saveJob(input: SaveJobInput): Promise<{ jobId: string }> {
-    const supabase = createServerActionClient({ cookies });
-    const { data: { user } } = await supabase.auth.getUser();
+    const { jobData, matchReport, accessToken } = SaveJobInputSchema.parse(input);
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const { data: { user } } = await supabase.auth.getUser(accessToken);
 
     if (!user) {
         throw new Error('You must be logged in to save a job.');
     }
     
-    const { jobData, matchReport } = SaveJobInputSchema.parse(input);
-
     const { data, error } = await supabase
         .from('saved-jobs')
         .insert({

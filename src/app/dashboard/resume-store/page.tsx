@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Upload, FileText, Download, Trash2, MoreHorizontal, AlertTriangle, Save } from "lucide-react";
 import jsPDF from 'jspdf';
@@ -36,6 +35,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { getResumes, deleteResume, savePastedResume, uploadAndSaveResume, type Resume } from "@/app/actions/resume-actions";
 import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 const formSchema = z.object({
   title: z.string().min(2, 'A title is required for your resume.'),
@@ -67,7 +67,15 @@ function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => 
     if (!selectedResume) return;
     setIsDeleting(true);
     try {
-      await deleteResume({ resumeId: selectedResume.id, storagePath: selectedResume.storage_path });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("You must be logged in to delete a resume.");
+      }
+      await deleteResume({ 
+        resumeId: selectedResume.id, 
+        storagePath: selectedResume.storage_path,
+        accessToken: session.access_token,
+      });
       toast({
         title: "Resume Deleted",
         description: "The resume has been successfully removed.",
@@ -206,6 +214,11 @@ export default function ResumeStorePage() {
     setIsSubmitting(true);
     
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("You must be logged in to save a resume.");
+      }
+
       if (values.resumeFile) {
         const file = values.resumeFile as File;
         if (file.size > 5 * 1024 * 1024) { // 5MB limit
@@ -216,12 +229,14 @@ export default function ResumeStorePage() {
         const formData = new FormData();
         formData.append('title', values.title);
         formData.append('file', file);
+        formData.append('accessToken', session.access_token);
         await uploadAndSaveResume(formData);
 
       } else if (values.resumeText && values.resumeText.length > 50) {
         await savePastedResume({
           title: values.title,
           resumeText: values.resumeText,
+          accessToken: session.access_token,
         });
       } else {
         toast({ variant: "destructive", title: "No content", description: "Please upload a file or paste resume text." });
@@ -321,6 +336,7 @@ export default function ResumeStorePage() {
                             ref={fileInputRef}
                             onChange={handleFileChange}
                             accept=".pdf,.txt"
+                            suppressHydrationWarning
                           />
                         </FormItem>
                       )}
