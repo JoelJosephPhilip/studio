@@ -9,6 +9,8 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Upload, FileText, Download, Trash2, MoreHorizontal, AlertTriangle, Save } from "lucide-react";
 import jsPDF from 'jspdf';
+import { useSession } from 'next-auth/react';
+import { useAuthState } from 'react-firebase-hooks/auth';
 
 import {
   Card,
@@ -33,6 +35,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { getResumes, deleteResume, savePastedResume, uploadAndSaveResume, type Resume } from "@/app/actions/resume-actions";
+import { auth } from "@/lib/firebase";
 
 const formSchema = z.object({
   title: z.string().min(2, 'A title is required for your resume.'),
@@ -152,14 +155,14 @@ export default function ResumeStorePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
-  const [user, setUser] = useState<any>(null);
+  const [user] = useAuthState(auth);
+  const { data: session } = useSession();
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
     defaultValues: { title: "", resumeText: "" },
   });
-  
+
   const fetchResumes = async () => {
     setIsLoading(true);
     try {
@@ -174,24 +177,14 @@ export default function ResumeStorePage() {
   };
 
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+    if (user || session) {
       fetchResumes();
+    } else {
+      setIsLoading(false);
     }
-    checkUser();
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, session]);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,7 +237,7 @@ export default function ResumeStorePage() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!user) {
+    if (!user && !session) {
       return (
         <div className="text-center p-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -345,7 +338,7 @@ export default function ResumeStorePage() {
                     />
                 </TabsContent>
               </Tabs>
-              <Button type="submit" disabled={isSubmitting || !user} className="w-full">
+              <Button type="submit" disabled={isSubmitting || (!user && !session)} className="w-full">
                 {isSubmitting ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
                 ) : (
