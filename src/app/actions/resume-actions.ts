@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
+import * as pdfjsLib from "pdfjs-dist";
 
 // --- Type Definitions for Function Outputs ---
 

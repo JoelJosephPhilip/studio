@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, Upload, Download, FileText, CheckCircle, Wand, Save } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
+import * as pdfjsLib from "pdfjs-dist";
 import jsPDF from "jspdf";
 import { useSession } from "next-auth/react";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -34,6 +34,14 @@ import { fixMyResume, type FixMyResumeOutput } from "@/ai/flows/fix-my-resume";
 import { Textarea } from "@/components/ui/textarea";
 import { savePastedResume } from "@/app/actions/resume-actions";
 import { auth } from "@/lib/firebase";
+
+// Setup for PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+}
 
 const formSchema = z.object({
   resumeFile: z.any().optional(),
