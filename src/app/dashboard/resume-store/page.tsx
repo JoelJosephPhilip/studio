@@ -155,8 +155,9 @@ export default function ResumeStorePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const [user] = useAuthState(auth);
-  const { data: session } = useSession();
+  const [user, firebaseLoading] = useAuthState(auth);
+  const { data: session, status: sessionStatus } = useSession();
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -177,13 +178,20 @@ export default function ResumeStorePage() {
   };
 
   useEffect(() => {
-    if (user || session) {
-      fetchResumes();
-    } else {
-      setIsLoading(false);
+    const isUserLoading = firebaseLoading || sessionStatus === 'loading';
+    const loggedIn = !!user || !!session;
+    
+    setIsUserLoggedIn(loggedIn);
+
+    if (!isUserLoading) {
+      if (loggedIn) {
+        fetchResumes();
+      } else {
+        setIsLoading(false);
+        setResumes([]);
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, session]);
+  }, [user, session, firebaseLoading, sessionStatus]);
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,7 +245,7 @@ export default function ResumeStorePage() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!user && !session) {
+    if (!isUserLoggedIn) {
       return (
         <div className="text-center p-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -338,7 +346,7 @@ export default function ResumeStorePage() {
                     />
                 </TabsContent>
               </Tabs>
-              <Button type="submit" disabled={isSubmitting || (!user && !session)} className="w-full">
+              <Button type="submit" disabled={isSubmitting || !isUserLoggedIn} className="w-full">
                 {isSubmitting ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
                 ) : (
