@@ -30,21 +30,6 @@ const SavePastedResumeInputSchema = z.object({
 });
 export type SavePastedResumeInput = z.infer<typeof SavePastedResumeInputSchema>;
 
-const UploadAndSaveResumeInputSchema = z.object({
-  title: z.string().min(2, 'A title is required.'),
-  file: z.instanceof(File),
-  accessToken: z.string(),
-});
-export type UploadAndSaveResumeInput = z.infer<typeof UploadAndSaveResumeInputSchema>;
-
-
-const DeleteResumeInputSchema = z.object({
-  resumeId: z.string().describe("The ID of the resume to delete."),
-  storagePath: z.string().optional().nullable(),
-  accessToken: z.string(),
-});
-export type DeleteResumeInput = z.infer<typeof DeleteResumeInputSchema>;
-
 
 // --- Schemas for Job Actions ---
 
@@ -108,7 +93,14 @@ export async function savePastedResume(input: SavePastedResumeInput): Promise<{ 
  * Saves an uploaded resume file to Supabase.
  */
 export async function uploadAndSaveResume(formData: FormData): Promise<{ resumeId: string }> {
-    const { title, file, accessToken } = Object.fromEntries(formData.entries()) as {title: string, file: File, accessToken: string};
+    const title = formData.get('title') as string;
+    const file = formData.get('file') as File;
+    const accessToken = formData.get('accessToken') as string;
+
+    if (!title || !file || !accessToken) {
+        throw new Error('Missing required form data.');
+    }
+    
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     const { data: { user } } = await supabase.auth.getUser(accessToken);
 
@@ -116,7 +108,7 @@ export async function uploadAndSaveResume(formData: FormData): Promise<{ resumeI
         throw new Error('You must be logged in to upload a resume.');
     }
     
-    if (!file || file.size === 0) {
+    if (file.size === 0) {
         throw new Error('No file provided or file is empty.');
     }
 
@@ -145,7 +137,7 @@ export async function uploadAndSaveResume(formData: FormData): Promise<{ resumeI
             id: resumeId,
             user_id: user.id,
             title,
-            file_type: fileExtension,
+            file_type: fileExtension as 'pdf' | 'txt',
             storage_path: filePath,
         })
         .select('id')
@@ -210,8 +202,8 @@ export async function getResumes(): Promise<Resume[]> {
 /**
  * Deletes a specific resume for a given user.
  */
-export async function deleteResume(input: DeleteResumeInput): Promise<{ success: boolean }> {
-  const { resumeId, storagePath, accessToken } = DeleteResumeInputSchema.parse(input);
+export async function deleteResume(input: { resumeId: string, storagePath: string | null, accessToken: string }): Promise<{ success: boolean }> {
+  const { resumeId, storagePath, accessToken } = input;
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
   const { data: { user } } = await supabase.auth.getUser(accessToken);
 

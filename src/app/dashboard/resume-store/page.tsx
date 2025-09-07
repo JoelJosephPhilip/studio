@@ -8,8 +8,8 @@ import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Upload, FileText, Download, Trash2, MoreHorizontal, AlertTriangle, Save } from "lucide-react";
 import jsPDF from 'jspdf';
-import { useSession } from 'next-auth/react';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import type { Session } from '@supabase/supabase-js';
+
 
 import {
   Card,
@@ -34,7 +34,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { getResumes, deleteResume, savePastedResume, uploadAndSaveResume, type Resume } from "@/app/actions/resume-actions";
-import { auth } from "@/lib/firebase";
 import { supabase } from "@/lib/supabase";
 
 const formSchema = z.object({
@@ -45,7 +44,7 @@ const formSchema = z.object({
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
-function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => void }) {
+function ResumeList({ resumes, session, onAction }: { resumes: Resume[], session: Session | null, onAction: () => void }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -64,13 +63,9 @@ function ResumeList({ resumes, onAction }: { resumes: Resume[], onAction: () => 
   };
 
   const confirmDelete = async () => {
-    if (!selectedResume) return;
+    if (!selectedResume || !session) return;
     setIsDeleting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("You must be logged in to delete a resume.");
-      }
       await deleteResume({ 
         resumeId: selectedResume.id, 
         storagePath: selectedResume.storage_path,
@@ -163,9 +158,7 @@ export default function ResumeStorePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const [user, firebaseLoading] = useAuthState(auth);
-  const { data: session, status: sessionStatus } = useSession();
-  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
@@ -179,27 +172,39 @@ export default function ResumeStorePage() {
       setResumes(fetchedResumes);
     } catch (error: any) {
       console.error("Failed to fetch resumes:", error);
-      toast({ variant: "destructive", title: "Error", description: error.message || "Could not fetch your saved resumes." });
+      // Don't toast here as getResumes can fail if not logged in, which is expected.
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    const isUserLoading = firebaseLoading || sessionStatus === 'loading';
-    const loggedIn = !!user || !!session;
-    
-    setIsUserLoggedIn(loggedIn);
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        if (session) {
+          await fetchResumes();
+        } else {
+          setResumes([]);
+        }
+      }
+    );
 
-    if (!isUserLoading && loggedIn) {
+    // Initial check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
         fetchResumes();
-    } else if (!isUserLoading && !loggedIn) {
+      } else {
         setIsLoading(false);
-        setResumes([]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, session, firebaseLoading, sessionStatus]);
+      }
+    });
 
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -212,10 +217,7 @@ export default function ResumeStorePage() {
   async function onSubmit(values: FormSchemaType) {
     setIsSubmitting(true);
     
-    try {
-      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-      
-      if (!supabaseSession) {
+    if (!session) {
         toast({
             variant: "destructive",
             title: "Authentication Error",
@@ -223,8 +225,9 @@ export default function ResumeStorePage() {
         });
         setIsSubmitting(false);
         return;
-      }
+    }
       
+    try {
       if (values.resumeFile) {
         const file = values.resumeFile as File;
         if (file.size > 5 * 1024 * 1024) { // 5MB limit
@@ -235,14 +238,14 @@ export default function ResumeStorePage() {
         const formData = new FormData();
         formData.append('title', values.title);
         formData.append('file', file);
-        formData.append('accessToken', supabaseSession.access_token);
+        formData.append('accessToken', session.access_token);
         await uploadAndSaveResume(formData);
 
       } else if (values.resumeText && values.resumeText.length > 50) {
         await savePastedResume({
           title: values.title,
           resumeText: values.resumeText,
-          accessToken: supabaseSession.access_token,
+          accessToken: session.access_token,
         });
       } else {
         toast({ variant: "destructive", title: "No content", description: "Please upload a file or paste resume text." });
@@ -266,7 +269,7 @@ export default function ResumeStorePage() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!isUserLoggedIn) {
+    if (!session) {
       return (
         <div className="text-center p-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -284,7 +287,7 @@ export default function ResumeStorePage() {
         </div>
       );
     }
-    return <ResumeList resumes={resumes} onAction={fetchResumes} />;
+    return <ResumeList resumes={resumes} session={session} onAction={fetchResumes} />;
   };
 
   return (
@@ -368,7 +371,7 @@ export default function ResumeStorePage() {
                     />
                 </TabsContent>
               </Tabs>
-              <Button type="submit" disabled={isSubmitting || !isUserLoggedIn} className="w-full">
+              <Button type="submit" disabled={isSubmitting || !session} className="w-full">
                 {isSubmitting ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
                 ) : (
