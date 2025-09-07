@@ -7,12 +7,12 @@ import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAA5VpNhybcjP5tn6QhiLT59b4rbR8pT2A",
-  authDomain: "careerforge-ai-fcryd.firebaseapp.com",
-  projectId: "careerforge-ai-fcryd",
-  storageBucket: "careerforge-ai-fcryd.firebasestorage.app",
-  messagingSenderId: "1018114730925",
-  appId: "1:1018114730925:web:6965547c35e02aeb750f24"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase for SSR
