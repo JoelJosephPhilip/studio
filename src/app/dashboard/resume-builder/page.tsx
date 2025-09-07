@@ -279,20 +279,9 @@ export default function ResumeBuilderPage() {
         });
         return;
     }
-    const userEmail = session?.user?.email || user?.email;
-    if (!userEmail) {
-        toast({
-            variant: 'destructive',
-            title: 'Not signed in',
-            description: 'You must be signed in to save a resume.'
-        });
-        return;
-    }
 
     setIsSaving(true);
     try {
-        // Simple text conversion from the structured data for now.
-        // A more robust solution might serialize the JSON or the HTML content.
         const resumeText = `
         ${generationResult.resume.personalDetails.fullName}
         ${generationResult.resume.personalDetails.email} | ${generationResult.resume.personalDetails.phoneNumber}
@@ -311,7 +300,6 @@ export default function ResumeBuilderPage() {
         `;
 
         await savePastedResume({
-            userEmail: userEmail,
             resumeText: resumeText,
             title: `${generationResult.resume.personalDetails.fullName}'s Resume`
         });
@@ -320,12 +308,12 @@ export default function ResumeBuilderPage() {
             title: "Successfully Saved!",
             description: "Your resume has been saved to your account.",
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving resume: ", error);
         toast({
             variant: "destructive",
             title: "Save Failed",
-            description: "Could not save resume. Please try again.",
+            description: error.message || "Could not save resume. Please try again.",
         });
     } finally {
         setIsSaving(false);
@@ -672,7 +660,7 @@ export default function ResumeBuilderPage() {
                             <Download className="mr-2 h-4 w-4" />
                             Download as PDF
                         </Button>
-                         <Button variant="outline" onClick={handleSaveResume} disabled={isSaving}>
+                         <Button variant="outline" onClick={handleSaveResume} disabled={isSaving || !user}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                             {isSaving ? "Saving..." : "Save Resume"}
                         </Button>

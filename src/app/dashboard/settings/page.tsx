@@ -16,53 +16,65 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { deleteResume, getResumes, type Resume } from '@/app/actions/resume-actions';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 function ResumeManager() {
-  const [firebaseUser, firebaseLoading] = useAuthState(auth);
-  const { data: session, status: sessionStatus } = useSession();
-  
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+  const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { toast } = useToast();
+  const supabase = createClientComponentClient();
+  const [user, setUser] = useState<any>(null);
 
-  const userEmail = session?.user?.email || firebaseUser?.email;
+  const fetchResumes = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedResumes = await getResumes();
+      setResumes(fetchedResumes);
+    } catch (error: any) {
+       console.error("Failed to fetch resumes:", error);
+       toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message || "Could not fetch your saved resumes.",
+       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const isUserLoading = firebaseLoading || sessionStatus === 'loading';
-    if (isUserLoading) {
-      setIsLoading(true);
-      return;
-    }
-    
-    console.log("Resolved userEmail for settings:", userEmail);
-
-    if (userEmail) {
-      const fetchAndSetResumes = async () => {
-        setIsLoading(true);
-        try {
-          const fetchedResumes = await getResumes({ userEmail });
-          setResumes(fetchedResumes);
-        } catch (error) {
-           console.error("Failed to fetch resumes:", error);
-           toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not fetch your saved resumes.",
-           });
-        } finally {
-          setIsLoading(false);
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+            fetchResumes();
+        } else {
+            setResumes([]);
+            setIsLoading(false);
         }
-      };
-      fetchAndSetResumes();
-    } else {
-      // No user is signed in
-      setIsLoading(false);
-      setResumes([]);
-    }
-  }, [userEmail, firebaseLoading, sessionStatus, toast]);
+      }
+    );
+
+    const checkUser = async () => {
+        const { data } = await supabase.auth.getUser();
+        setUser(data.user);
+        if (data.user) {
+            fetchResumes();
+        } else {
+            setIsLoading(false);
+        }
+    };
+    checkUser();
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const downloadResumeAsPdf = (resume: Resume) => {
     const pdf = new jsPDF();
@@ -71,32 +83,32 @@ function ResumeManager() {
     pdf.save(`${resume.title.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const handleDeleteClick = (resumeId: string) => {
-    setSelectedResumeId(resumeId);
+  const handleDeleteClick = (resume: Resume) => {
+    setSelectedResume(resume);
     setIsAlertOpen(true);
   };
 
   const confirmDelete = async () => {
-    if (!selectedResumeId || !userEmail) return;
+    if (!selectedResume) return;
     setIsDeleting(true);
     try {
-      await deleteResume({ userEmail: userEmail, resumeId: selectedResumeId });
-      setResumes(resumes.filter(r => r.id !== selectedResumeId));
+      await deleteResume({ resumeId: selectedResume.id, storagePath: selectedResume.storage_path });
+      setResumes(resumes.filter(r => r.id !== selectedResume.id));
       toast({
         title: "Resume Deleted",
         description: "The resume has been successfully removed.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting resume:", error);
       toast({
         variant: "destructive",
         title: "Deletion Failed",
-        description: "Could not delete the resume. Please try again.",
+        description: error.message || "Could not delete the resume. Please try again.",
       });
     } finally {
       setIsDeleting(false);
       setIsAlertOpen(false);
-      setSelectedResumeId(null);
+      setSelectedResume(null);
     }
   };
 
@@ -104,7 +116,7 @@ function ResumeManager() {
     if (isLoading) {
       return <div className="flex items-center justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-    if (!userEmail) {
+    if (!user) {
        return (
         <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
           <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -138,7 +150,7 @@ function ResumeManager() {
               <div>
                 <p className="font-semibold">{resume.title}</p>
                 <p className="text-sm text-muted-foreground">
-                  Last updated: {new Date(resume.updatedAt).toLocaleDateString()}
+                  Last updated: {new Date(resume.updated_at).toLocaleDateString()}
                 </p>
               </div>
               <DropdownMenu>
@@ -152,7 +164,7 @@ function ResumeManager() {
                     <Download className="mr-2 h-4 w-4" />
                     <span>Download</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleDeleteClick(resume.id)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                  <DropdownMenuItem onClick={() => handleDeleteClick(resume)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" />
                     <span>Delete</span>
                   </DropdownMenuItem>

@@ -178,21 +178,10 @@ export default function FixMyResumePage() {
   
   const handleSaveResume = async () => {
     if (!analysisResult?.improvedResumeText) return;
-
-    const userEmail = session?.user?.email || user?.email;
-    if (!userEmail) {
-        toast({
-            variant: 'destructive',
-            title: 'Not signed in',
-            description: 'You must be signed in to save a resume.'
-        });
-        return;
-    }
     
     setIsSaving(true);
     try {
         await savePastedResume({
-            userEmail: userEmail,
             resumeText: analysisResult.improvedResumeText,
             title: `Improved Resume - ${new Date().toLocaleDateString()}`
         });
@@ -201,12 +190,12 @@ export default function FixMyResumePage() {
             title: "Successfully Saved!",
             description: "Your improved resume has been saved to your account.",
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving resume: ", error);
         toast({
             variant: "destructive",
             title: "Save Failed",
-            description: "Could not save resume. Please try again.",
+            description: error.message || "Could not save resume. Please try again.",
         });
     } finally {
         setIsSaving(false);
@@ -347,7 +336,7 @@ export default function FixMyResumePage() {
                         <Download className="mr-2 h-4 w-4" />
                         Download as PDF
                     </Button>
-                    <Button variant="outline" onClick={handleSaveResume} disabled={isSaving}>
+                    <Button variant="outline" onClick={handleSaveResume} disabled={isSaving || !user}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         {isSaving ? "Saving..." : "Save Resume"}
                     </Button>

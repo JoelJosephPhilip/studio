@@ -2,51 +2,43 @@
 'use server';
 
 /**
- * @fileOverview Manages saving and retrieving resumes and jobs from Firestore.
- * This file uses the user's email as the document ID in the 'users' collection.
+ * @fileOverview Manages saving and retrieving resumes and jobs from Supabase.
  */
 
 import { z } from 'zod';
-import type { Timestamp } from 'firebase-admin/firestore';
-import { db } from '@/lib/firebaseAdmin';
-import * as admin from 'firebase-admin';
-import * as pdfjsLib from "pdfjs-dist";
-
-// --- Type Definitions for Function Outputs ---
+import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import {v4 as uuidv4} from 'uuid';
 
 export type Resume = {
   id: string;
   title: string;
   content: string;
-  createdAt: Date;
-  updatedAt: Date;
+  created_at: string;
+  updated_at: string;
+  file_type: 'pdf' | 'txt' | 'text';
+  storage_path: string | null;
 };
+
 
 // --- Schemas for Resume Actions ---
 
 const SavePastedResumeInputSchema = z.object({
-  userEmail: z.string().email("A valid user email is required."),
   title: z.string().min(2, 'A title is required.'),
   resumeText: z.string().min(50, 'Resume content is too short.'),
 });
 export type SavePastedResumeInput = z.infer<typeof SavePastedResumeInputSchema>;
 
 const UploadAndSaveResumeInputSchema = z.object({
-  userEmail: z.string().email("A valid user email is required."),
   title: z.string().min(2, 'A title is required.'),
-  fileDataUri: z.string().describe("A PDF or TXT file as a data URI."),
+  file: z.instanceof(File),
 });
 export type UploadAndSaveResumeInput = z.infer<typeof UploadAndSaveResumeInputSchema>;
 
 
-const GetResumesInputSchema = z.object({
-  userEmail: z.string().email("A valid user email is required."),
-});
-export type GetResumesInput = z.infer<typeof GetResumesInputSchema>;
-
 const DeleteResumeInputSchema = z.object({
-  userEmail: z.string().email("A valid user email is required."),
   resumeId: z.string().describe("The ID of the resume to delete."),
+  storagePath: z.string().optional().nullable(),
 });
 export type DeleteResumeInput = z.infer<typeof DeleteResumeInputSchema>;
 
@@ -69,7 +61,6 @@ const JobDataSchema = z.object({
 });
 
 const SaveJobInputSchema = z.object({
-  userEmail: z.string().email(),
   jobData: JobDataSchema,
   matchReport: MatchReportSchema,
 });
@@ -79,171 +70,181 @@ export type SaveJobInput = z.infer<typeof SaveJobInputSchema>;
 // --- Server Actions ---
 
 /**
- * Saves resume data from pasted text to the user's document in Firestore.
+ * Saves resume data from pasted text to the user's document in Supabase.
  */
 export async function savePastedResume(input: SavePastedResumeInput): Promise<{ resumeId: string }> {
-  try {
-    if (!db) {
-        throw new Error('Firebase Admin SDK not initialized.');
-    }
-      
-    const { userEmail, title, resumeText } = SavePastedResumeInputSchema.parse(input);
-    const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
-    
-    const docRef = await resumesCollectionRef.add({
-        title: title,
-        content: resumeText,
-        fileType: 'text',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+  const supabase = createServerActionClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
 
-    return { resumeId: docRef.id };
-  } catch (error: any) {
-      console.error("Firestore save error in savePastedResume:", error.message);
-      throw new Error(`Failed to save resume: ${error.message}`);
+  if (!user) {
+    throw new Error('You must be logged in to save a resume.');
   }
+  
+  const { title, resumeText } = SavePastedResumeInputSchema.parse(input);
+  
+  const { data, error } = await supabase
+    .from('resumes')
+    .insert({
+      user_id: user.id,
+      title: title,
+      text_content: resumeText,
+      file_type: 'text',
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error("Supabase save error in savePastedResume:", error.message);
+    throw new Error(`Failed to save resume: ${error.message}`);
+  }
+
+  return { resumeId: data.id };
 }
 
 /**
- * Extracts text from a file buffer and saves the resume.
+ * Saves an uploaded resume file to Supabase.
  */
-async function extractTextAndSave(buffer: Buffer, mimeType: string, title: string, userEmail: string): Promise<string> {
-    let textContent = '';
-    let fileType = 'text';
+export async function uploadAndSaveResume(formData: FormData): Promise<{ resumeId: string }> {
+    const supabase = createServerActionClient({ cookies });
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (mimeType === 'application/pdf') {
-        fileType = 'pdf';
-        const pdf = await pdfjsLib.getDocument(buffer).promise;
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            textContent += content.items.map(item => ('str' in item ? item.str : '')).join(' ');
-        }
-    } else if (mimeType === 'text/plain') {
-        textContent = buffer.toString('utf-8');
-    } else {
-        throw new Error('Unsupported file type. Please upload a PDF or TXT file.');
+    if (!user) {
+        throw new Error('You must be logged in to upload a resume.');
     }
 
-    if (!db) {
-        throw new Error('Firebase Admin SDK not initialized.');
+    const { title, file } = Object.fromEntries(formData.entries()) as {title: string, file: File};
+    
+    if (!file || file.size === 0) {
+        throw new Error('No file provided or file is empty.');
     }
 
-    const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
-    const docRef = await resumesCollectionRef.add({
-        title,
-        content: textContent,
-        fileType,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    return docRef.id;
-}
-
-
-/**
- * Saves an uploaded resume file to Firestore.
- */
-export async function uploadAndSaveResume(input: UploadAndSaveResumeInput): Promise<{ resumeId: string }> {
-    try {
-        const { userEmail, title, fileDataUri } = UploadAndSaveResumeInputSchema.parse(input);
-        
-        const matches = fileDataUri.match(/^data:(.+);base64,(.+)$/);
-        if (!matches || matches.length !== 3) {
-            throw new Error('Invalid Data URI format.');
-        }
-
-        const mimeType = matches[1];
-        const base64Data = matches[2];
-        const buffer = Buffer.from(base64Data, 'base64');
-        
-        const resumeId = await extractTextAndSave(buffer, mimeType, title, userEmail);
-
-        return { resumeId };
-    } catch (error: any) {
-        console.error("Error in uploadAndSaveResume:", error.message);
-        throw new Error(`Failed to upload resume: ${error.message}`);
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    if (fileExtension !== 'pdf' && fileExtension !== 'txt') {
+         throw new Error('Invalid file type. Please upload a PDF or TXT file.');
     }
+
+    const resumeId = uuidv4();
+    const filePath = `${user.id}/${resumeId}.${fileExtension}`;
+    
+    // Upload file to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(filePath, file);
+
+    if (uploadError) {
+        console.error("Supabase upload error:", uploadError.message);
+        throw new Error(`Failed to upload resume file: ${uploadError.message}`);
+    }
+
+    // Insert metadata into the database
+    const { data, error: insertError } = await supabase
+        .from('resumes')
+        .insert({
+            id: resumeId,
+            user_id: user.id,
+            title,
+            file_type: fileExtension,
+            storage_path: filePath,
+        })
+        .select('id')
+        .single();
+    
+    if (insertError) {
+        console.error("Supabase insert error after upload:", insertError.message);
+        // Attempt to clean up the orphaned storage file
+        await supabase.storage.from('resumes').remove([filePath]);
+        throw new Error(`Failed to save resume metadata: ${insertError.message}`);
+    }
+
+    return { resumeId: data.id };
 }
 
 
 /**
  * Fetches all resumes for a given user.
  */
-export async function getResumes(input: GetResumesInput): Promise<Resume[]> {
-  try {
-     if (!db) {
-        console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
-        return [];
-    }
-      
-    const { userEmail } = GetResumesInputSchema.parse(input);
-    const resumesCollectionRef = db.collection('users').doc(userEmail).collection('resumes');
-    const snapshot = await resumesCollectionRef.orderBy('updatedAt', 'desc').get();
+export async function getResumes(): Promise<Resume[]> {
+  const supabase = createServerActionClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
 
-    if (snapshot.empty) {
-      return [];
-    }
-    
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title,
-        content: data.content,
-        createdAt: (data.createdAt as Timestamp)?.toDate?.() || new Date(),
-        updatedAt: (data.updatedAt as Timestamp)?.toDate?.() || new Date(),
-      };
-    });
-  } catch (error: any) {
-    console.error("Firestore get error in getResumes:", error.message);
+  if (!user) {
+    console.warn('User not authenticated. Skipping DB operation.');
+    return [];
+  }
+      
+  const { data, error } = await supabase
+    .from('resumes')
+    .select('id, title, text_content, created_at, updated_at, file_type, storage_path')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    console.error("Supabase get error in getResumes:", error.message);
     throw new Error(`Failed to get resumes from database: ${error.message}`);
   }
+
+  // Map text_content to content for consistency
+  return data.map(r => ({ ...r, content: r.text_content || '' }));
 }
 
 /**
  * Deletes a specific resume for a given user.
  */
 export async function deleteResume(input: DeleteResumeInput): Promise<{ success: boolean }> {
-  try {
-     if (!db) {
-        console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
-        return { success: true };
-    }
-      
-    const { userEmail, resumeId } = DeleteResumeInputSchema.parse(input);
-    const resumeDocRef = db.collection('users').doc(userEmail).collection('resumes').doc(resumeId);
-    await resumeDocRef.delete();
+  const supabase = createServerActionClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
 
-    return { success: true };
-  } catch (error: any) {
-    console.error("Firestore delete error in deleteResume:", error.message);
-    throw new Error(`Failed to delete resume from database: ${error.message}`);
+  if (!user) {
+    throw new Error('You must be logged in to delete a resume.');
   }
+      
+  const { resumeId, storagePath } = DeleteResumeInputSchema.parse(input);
+
+  if (storagePath) {
+    const { error: storageError } = await supabase.storage.from('resumes').remove([storagePath]);
+    if (storageError) {
+        console.error("Supabase storage delete error:", storageError.message);
+        throw new Error(`Failed to delete resume file from storage: ${storageError.message}`);
+    }
+  }
+
+  const { error: dbError } = await supabase.from('resumes').delete().eq('id', resumeId).eq('user_id', user.id);
+  
+  if (dbError) {
+     console.error("Supabase db delete error:", dbError.message);
+     throw new Error(`Failed to delete resume from database: ${dbError.message}`);
+  }
+
+  return { success: true };
 }
 
 /**
- * Saves a job and its match report to the user's document in Firestore.
+ * Saves a job and its match report to the user's document in Supabase.
  */
 export async function saveJob(input: SaveJobInput): Promise<{ jobId: string }> {
-    try {
-        if (!db) {
-            console.warn('Firebase Admin SDK not initialized. Skipping DB operation.');
-            return { jobId: 'dev-mode-no-db' };
-        }
-        const { userEmail, jobData, matchReport } = SaveJobInputSchema.parse(input);
-        const savedJobsCollection = db.collection('users').doc(userEmail).collection('saved-jobs');
-        
-        const docRef = await savedJobsCollection.add({
-            ...jobData,
-            matchReport,
-            savedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+    const supabase = createServerActionClient({ cookies });
+    const { data: { user } } = await supabase.auth.getUser();
 
-        return { jobId: docRef.id };
-    } catch (error: any) {
-        console.error("Firestore save error in saveJob:", error.message);
+    if (!user) {
+        throw new Error('You must be logged in to save a job.');
+    }
+    
+    const { jobData, matchReport } = SaveJobInputSchema.parse(input);
+
+    const { data, error } = await supabase
+        .from('saved-jobs')
+        .insert({
+            user_id: user.id,
+            ...jobData,
+            match_report: matchReport,
+        })
+        .select('id')
+        .single();
+    
+    if (error) {
+        console.error("Supabase save error in saveJob:", error.message);
         throw new Error(`Failed to save job to database: ${error.message}`);
     }
+
+    return { jobId: data.id };
 }
