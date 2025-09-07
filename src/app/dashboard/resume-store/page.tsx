@@ -214,11 +214,18 @@ export default function ResumeStorePage() {
     setIsSubmitting(true);
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("You must be logged in to save a resume.");
+      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+      
+      if (!supabaseSession) {
+        toast({
+            variant: "destructive",
+            title: "Authentication Error",
+            description: "Your session has expired. Please log in again.",
+        });
+        setIsSubmitting(false);
+        return;
       }
-
+      
       if (values.resumeFile) {
         const file = values.resumeFile as File;
         if (file.size > 5 * 1024 * 1024) { // 5MB limit
@@ -229,14 +236,14 @@ export default function ResumeStorePage() {
         const formData = new FormData();
         formData.append('title', values.title);
         formData.append('file', file);
-        formData.append('accessToken', session.access_token);
+        formData.append('accessToken', supabaseSession.access_token);
         await uploadAndSaveResume(formData);
 
       } else if (values.resumeText && values.resumeText.length > 50) {
         await savePastedResume({
           title: values.title,
           resumeText: values.resumeText,
-          accessToken: session.access_token,
+          accessToken: supabaseSession.access_token,
         });
       } else {
         toast({ variant: "destructive", title: "No content", description: "Please upload a file or paste resume text." });
@@ -387,3 +394,5 @@ export default function ResumeStorePage() {
     </div>
   );
 }
+
+    
